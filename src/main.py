@@ -41,7 +41,7 @@ async def run_full_competition(competition_name: str, target_percentile: float =
     """
     logger.info(f"Starting full competition workflow for: {competition_name}")
 
-    # Initialize orchestrator
+    # Initialize orchestrator(Object
     orchestrator = OrchestratorAgent(
         competition_name=competition_name,
         target_percentile=target_percentile,

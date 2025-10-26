@@ -5,7 +5,7 @@ the competition lifecycle.
 """
 import logging
 import asyncio
-from typing import Dict, Any, Optional, List
+from typing import Any, Optional
 from pathlib import Path
 from datetime import datetime
 
@@ -47,7 +47,7 @@ class OrchestratorAgent(BaseAgent):
         self.iteration = 0
         self.workflow_history = []
 
-    async def run(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def run(self, context: dict[str, Any]) -> dict[str, Any]:
         """
         Main execution method for orchestration.
 
@@ -123,7 +123,7 @@ class OrchestratorAgent(BaseAgent):
             self.set_error(error_msg)
             raise
 
-    async def _run_data_collection(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _run_data_collection(self, context: dict[str, Any]) -> dict[str, Any]:
         """Execute data collection phase."""
         logger.info("Initiating data collection...")
 
@@ -143,9 +143,9 @@ class OrchestratorAgent(BaseAgent):
 
     async def _run_initial_training(
         self,
-        data_results: Dict[str, Any],
-        training_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        data_results: dict[str, Any],
+        training_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """Execute initial model training."""
         logger.info("Starting initial model training...")
 
@@ -193,9 +193,9 @@ class OrchestratorAgent(BaseAgent):
 
     async def _run_submission(
         self,
-        training_results: Dict[str, Any],
-        data_results: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        training_results: dict[str, Any],
+        data_results: dict[str, Any]
+    ) -> dict[str, Any]:
         """Execute submission phase."""
         logger.info("Preparing and submitting predictions...")
 
@@ -236,10 +236,10 @@ class OrchestratorAgent(BaseAgent):
 
     async def _optimization_loop(
         self,
-        data_results: Dict[str, Any],
-        training_results: Dict[str, Any],
-        context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        data_results: dict[str, Any],
+        training_results: dict[str, Any],
+        context: dict[str, Any]
+    ) -> dict[str, Any]:
         """Run the optimization loop until target is met or max iterations reached."""
         logger.info("Entering optimization loop...")
 
@@ -363,10 +363,10 @@ class OrchestratorAgent(BaseAgent):
 
     def _improve_training_config(
         self,
-        base_config: Dict[str, Any],
+        base_config: dict[str, Any],
         current_percentile: float,
         aggressive: bool = False
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Improve training configuration based on current performance."""
         improved_config = base_config.copy()
 
@@ -392,7 +392,7 @@ class OrchestratorAgent(BaseAgent):
         logger.info(f"Updated training config: {improved_config}")
         return improved_config
 
-    def _log_phase_results(self, phase_name: str, results: Dict[str, Any]) -> None:
+    def _log_phase_results(self, phase_name: str, results: dict[str, Any]) -> None:
         """Log phase completion and key results."""
         logger.info(f"✓ {phase_name} completed")
 
@@ -401,7 +401,7 @@ class OrchestratorAgent(BaseAgent):
             if key not in ["analysis_report", "leaderboard_data"]:
                 logger.info(f"  {key}: {value}")
 
-    def get_workflow_summary(self) -> Dict[str, Any]:
+    def get_workflow_summary(self) -> dict[str, Any]:
         """Get summary of the entire workflow."""
         return {
             "competition": self.competition_name,

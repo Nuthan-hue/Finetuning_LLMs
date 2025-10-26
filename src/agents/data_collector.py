@@ -146,7 +146,22 @@ class DataCollectorAgent(BaseAgent):
             return output_dir
 
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Kaggle API error: {e.stderr}")
+            error_msg = f"Kaggle API error (exit code {e.returncode})"
+            if e.stderr:
+                error_msg += f": {e.stderr}"
+            if e.stdout:
+                error_msg += f"\nOutput: {e.stdout}"
+
+            # Provide helpful guidance for common errors
+            if "403" in str(e.stdout):
+                error_msg += f"\n\nHINT: You need to join the competition first!"
+                error_msg += f"\n1. Visit: https://www.kaggle.com/competitions/{competition_name}"
+                error_msg += f"\n2. Click 'Join Competition' and accept the rules"
+                error_msg += f"\n3. Then retry the download"
+            elif "404" in str(e.stdout):
+                error_msg += f"\n\nHINT: Competition '{competition_name}' not found. Check the competition name/slug."
+
+            raise RuntimeError(error_msg)
         except Exception as e:
             raise RuntimeError(f"Failed to download data: {str(e)}")
 
