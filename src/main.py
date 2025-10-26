@@ -1,211 +1,236 @@
+"""
+Main entry point for Kaggle Competition Multi-Agent System
+
+This module demonstrates how to use the orchestrator and specialized agents
+to automate Kaggle competition participation.
+"""
 import os
-from enum import Enum
-from typing import List, Dict, Optional, Union
-import pickle
-import numpy as np
-from pydantic import BaseModel
+import asyncio
+import logging
+from pathlib import Path
+from dotenv import load_dotenv
 
-try:
-    import tensorflow as tf
-except ImportError:
-    tf = None
+from agents import (
+    OrchestratorAgent,
+    DataCollectorAgent,
+    ModelTrainerAgent,
+    SubmissionAgent,
+    LeaderboardMonitorAgent
+)
 
-class ModelType(Enum):
-    TENSORFLOW = "tensorflow"
-    PICKLE = "pickle"
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('logs/kaggle_agent.log'),
+        logging.StreamHandler()
+    ]
+)
 
-class LocalModel:
-    def __init__(self, model_path: str):
-        self.model_path = model_path
-        self.model = None
-        self.model_type = self._determine_model_type()
-        self.load_model()
+logger = logging.getLogger(__name__)
 
-    def _determine_model_type(self) -> ModelType:
-        if self.model_path.endswith('.h5'):
-            if tf is None:
-                raise ImportError("TensorFlow is required for .h5 models. Install it with: pip install tensorflow")
-            return ModelType.TENSORFLOW
-        elif self.model_path.endswith('.pkl'):
-            return ModelType.PICKLE
-        else:
-            raise ValueError("Unsupported model format. Use either .h5 or .pkl files")
 
-    def load_model(self):
-        if self.model_type == ModelType.TENSORFLOW:
-            self.model = tf.keras.models.load_model(self.model_path)
-        else:  # PICKLE
-            with open(self.model_path, 'rb') as f:
-                self.model = pickle.load(f)
+async def run_full_competition(competition_name: str, target_percentile: float = 0.20):
+    """
+    Run the full competition workflow using the orchestrator.
 
-    def generate_response(self, input_text: str) -> str:
-        if self.model is None:
-            raise ValueError("Model not loaded")
+    Args:
+        competition_name: Name of the Kaggle competition
+        target_percentile: Target ranking (default: top 20%)
+    """
+    logger.info(f"Starting full competition workflow for: {competition_name}")
 
-        # Convert input text to model-appropriate format
-        # This is a placeholder - modify according to your model's requirements
-        if self.model_type == ModelType.TENSORFLOW:
-            # Example preprocessing for tensorflow model
-            # Modify this according to your model's input requirements
-            return self._generate_tensorflow_response(input_text)
-        else:
-            # Example preprocessing for pickle model
-            # Modify this according to your model's input requirements
-            return self._generate_pickle_response(input_text)
+    # Initialize orchestrator
+    orchestrator = OrchestratorAgent(
+        competition_name=competition_name,
+        target_percentile=target_percentile,
+        max_iterations=5
+    )
 
-    def _generate_tensorflow_response(self, input_text: str) -> str:
-        # Implement your tensorflow model inference here
-        # This is just an example - modify according to your model
-        try:
-            # Example: Convert text to sequence, pad, predict, etc.
-            # prediction = self.model.predict(processed_input)
-            # return self._process_prediction(prediction)
-            return f"TensorFlow model response for: {input_text}"
-        except Exception as e:
-            return f"Error generating response: {str(e)}"
+    # Prepare context
+    context = {
+        "competition_name": competition_name,
+        "external_sources": [],  # Add external data URLs if needed
+        "training_config": {
+            "learning_rate": 0.05,
+            "num_boost_round": 1000,
+            "num_leaves": 31,
+            "max_depth": -1
+        }
+    }
 
-    def _generate_pickle_response(self, input_text: str) -> str:
-        # Implement your pickle model inference here
-        # This is just an example - modify according to your model
-        try:
-            # Example: Process input according to your model's requirements
-            # prediction = self.model.predict([input_text])
-            # return self._process_prediction(prediction)
-            return f"Pickle model response for: {input_text}"
-        except Exception as e:
-            return f"Error generating response: {str(e)}"
-
-class ThoughtType(Enum):
-    THOUGHT = "thought"
-    ACTION = "action"
-    OBSERVATION = "observation"
-    FINAL_ANSWER = "final_answer"
-
-class Thought(BaseModel):
-    type: ThoughtType
-    content: str
-
-class Agent:
-    def __init__(self, system_prompt: str = None):
-        self.system_prompt = system_prompt or """You are a helpful autonomous agent.
-Your task is to help users accomplish their goals through careful thinking and action.
-Always follow this process:
-1. Think about what you know and what you need to find out
-2. Decide on the next action
-3. Execute the action and observe the results
-4. Continue this process until you reach a final answer
-Format your responses as one of these types:
-THOUGHT: for your reasoning process
-ACTION: for actions you want to take
-OBSERVATION: for results of actions
-FINAL_ANSWER: when you have completed the task"""
-        self.conversation_history = []
-
-    def _create_messages(self) -> List[Dict[str, str]]:
-        messages = [{"role": "system", "content": self.system_prompt}]
-        messages.extend(self.conversation_history)
-        return messages
-
-    def _parse_response(self, response: str) -> Thought:
-        for thought_type in ThoughtType:
-            prefix = f"{thought_type.value.upper()}: "
-            if response.upper().startswith(prefix):
-                content = response[len(prefix):].strip()
-                return Thought(type=thought_type, content=content)
-
-        # Default to treating it as a thought if no prefix is found
-        return Thought(type=ThoughtType.THOUGHT, content=response)
-
-    def __init__(self, model_path: str = None, system_prompt: str = None):
-        self.system_prompt = system_prompt or """You are a helpful autonomous agent.
-Your task is to help users accomplish their goals through careful thinking and action.
-Always follow this process:
-1. Think about what you know and what you need to find out
-2. Decide on the next action
-3. Execute the action and observe the results
-4. Continue this process until you reach a final answer
-Format your responses as one of these types:
-THOUGHT: for your reasoning process
-ACTION: for actions you want to take
-OBSERVATION: for results of actions
-FINAL_ANSWER: when you have completed the task"""
-        self.conversation_history = []
-        self.model = LocalModel(model_path) if model_path else None
-
-    def think(self, user_input: str) -> List[Thought]:
-        thoughts = []
-        max_steps = 10  # Prevent infinite loops
-
-        if not self.model:
-            return [Thought(
-                type=ThoughtType.FINAL_ANSWER,
-                content="No model loaded. Please provide a model path (.h5 or .pkl file)"
-            )]
-
-        try:
-            # Add system prompt and user input to context
-            context = f"{self.system_prompt}\n\nUser: {user_input}"
-
-            # Generate initial response
-            response_text = self.model.generate_response(context)
-            thought = self._parse_response(response_text)
-            thoughts.append(thought)
-
-            # Continue thinking if needed
-            for _ in range(max_steps - 1):
-                if thought.type == ThoughtType.FINAL_ANSWER:
-                    break
-
-                # Update context with previous thought
-                context = f"Previous thought: {thought.content}\nContinue thinking..."
-                response_text = self.model.generate_response(context)
-                thought = self._parse_response(response_text)
-                thoughts.append(thought)
-
-        except Exception as e:
-            print(f"Error during thinking process: {str(e)}")
-            thoughts.append(Thought(
-                type=ThoughtType.FINAL_ANSWER,
-                content=f"I encountered an error: {str(e)}"
-            ))
-
-        return thoughts
-
-def main():
     try:
-        # Example paths - replace with your actual model paths
-        tf_model_path = "path/to/your/model.h5"  # For TensorFlow model
-        pkl_model_path = "path/to/your/model.pkl"  # For pickle model
+        # Run orchestration
+        results = await orchestrator.run(context)
 
-        # Create agent with your preferred model
-        print("Choose your model type:")
-        print("1. TensorFlow model (.h5)")
-        print("2. Pickle model (.pkl)")
-        choice = input("Enter 1 or 2: ")
+        # Display results
+        logger.info("\n" + "="*50)
+        logger.info("FINAL RESULTS")
+        logger.info("="*50)
+        logger.info(f"Competition: {competition_name}")
+        logger.info(f"Final Rank: {results.get('final_rank', 'N/A')}")
+        logger.info(f"Final Percentile: {results.get('final_percentile', 'N/A'):.2%}")
+        logger.info(f"Target Met: {results.get('target_met', False)}")
+        logger.info(f"Total Iterations: {results.get('total_iterations', 0)}")
 
-        model_path = tf_model_path if choice == "1" else pkl_model_path
-        agent = Agent(model_path=model_path)
+        # Get workflow summary
+        summary = orchestrator.get_workflow_summary()
+        logger.info(f"\nWorkflow History: {len(summary['workflow_history'])} iterations")
 
-        # Run a test query
-        print("\nRunning test query...")
-        query = input("Enter your question: ")
-        thoughts = agent.think(query)
-
-        print("\nThoughts:")
-        for thought in thoughts:
-            print(f"{thought.type.value.upper()}: {thought.content}")
+        return results
 
     except Exception as e:
-        print(f"\nError in main: {str(e)}")
-        print("\nTroubleshooting tips:")
-        print("1. Make sure your model file exists and is accessible")
-        print("2. For .h5 files, ensure TensorFlow is installed")
-        print("3. Check if your model format matches the file extension")
-        print("4. Verify that your model is compatible with the input format")
+        logger.error(f"Error in competition workflow: {str(e)}")
+        raise
+
+
+async def run_data_collection_only(competition_name: str):
+    """
+    Run only the data collection phase.
+
+    Useful for exploring a competition before starting the full workflow.
+    """
+    logger.info(f"Running data collection for: {competition_name}")
+
+    # Initialize data collector
+    collector = DataCollectorAgent()
+
+    # Run data collection
+    context = {
+        "competition_name": competition_name,
+        "analyze": True
+    }
+
+    results = await collector.run(context)
+
+    # Display analysis
+    analysis = results.get("analysis_report", {})
+    logger.info("\nData Analysis:")
+    logger.info(f"Files found: {len(analysis.get('files', []))}")
+
+    for filename, info in analysis.get("datasets", {}).items():
+        logger.info(f"\n{filename}:")
+        logger.info(f"  Shape: {info['shape']}")
+        logger.info(f"  Columns: {len(info['columns'])}")
+        logger.info(f"  Target: {info.get('target_column', 'Unknown')}")
+
+    return results
+
+
+async def run_training_only(data_path: str, target_column: str):
+    """
+    Run only the model training phase.
+
+    Useful for testing different models on already downloaded data.
+    """
+    logger.info("Running model training...")
+
+    # Initialize trainer
+    trainer = ModelTrainerAgent()
+
+    # Run training
+    context = {
+        "data_path": data_path,
+        "target_column": target_column,
+        "config": {
+            "learning_rate": 0.05,
+            "num_boost_round": 1000,
+        }
+    }
+
+    results = await trainer.run(context)
+
+    logger.info("\nTraining Results:")
+    logger.info(f"Model Type: {results.get('model_type')}")
+    logger.info(f"Model Path: {results.get('model_path')}")
+    logger.info(f"Best Score: {results.get('best_score'):.4f}")
+    logger.info(f"Metric: {results.get('metric')}")
+
+    return results
+
+
+def display_menu():
+    """Display interactive menu."""
+    print("\n" + "="*60)
+    print("Kaggle Competition Multi-Agent System")
+    print("="*60)
+    print("\nOptions:")
+    print("1. Run Full Competition Workflow (Automated)")
+    print("2. Data Collection Only")
+    print("3. Model Training Only")
+    print("4. Check Leaderboard")
+    print("5. Exit")
+    print("\n" + "="*60)
+
+
+async def main():
+    """Main entry point."""
+    # Load environment variables
+    load_dotenv()
+
+    # Create necessary directories
+    Path("logs").mkdir(exist_ok=True)
+    Path("data").mkdir(exist_ok=True)
+    Path("models").mkdir(exist_ok=True)
+    Path("submissions").mkdir(exist_ok=True)
+
+    # Check Kaggle credentials
+    if not os.getenv("KAGGLE_USERNAME") or not os.getenv("KAGGLE_KEY"):
+        logger.warning("Kaggle credentials not found in environment!")
+        logger.warning("Please set KAGGLE_USERNAME and KAGGLE_KEY in .env file")
+        logger.warning("Or ensure ~/.kaggle/kaggle.json is properly configured")
+
+    while True:
+        display_menu()
+        choice = input("\nEnter your choice (1-5): ").strip()
+
+        try:
+            if choice == "1":
+                # Full workflow
+                competition_name = input("Enter competition name: ").strip()
+                target = input("Target percentile (default 0.20 for top 20%): ").strip()
+                target_percentile = float(target) if target else 0.20
+
+                await run_full_competition(competition_name, target_percentile)
+
+            elif choice == "2":
+                # Data collection only
+                competition_name = input("Enter competition name: ").strip()
+                await run_data_collection_only(competition_name)
+
+            elif choice == "3":
+                # Training only
+                data_path = input("Enter path to training data: ").strip()
+                target_column = input("Enter target column name: ").strip()
+                await run_training_only(data_path, target_column)
+
+            elif choice == "4":
+                # Check leaderboard
+                competition_name = input("Enter competition name: ").strip()
+                monitor = LeaderboardMonitorAgent()
+                results = await monitor.run({"competition_name": competition_name})
+
+                print("\nLeaderboard Status:")
+                print(f"Current Rank: {results.get('current_rank', 'N/A')}")
+                print(f"Total Teams: {results.get('total_teams', 'N/A')}")
+                print(f"Percentile: {results.get('current_percentile', 'N/A'):.2%}")
+
+            elif choice == "5":
+                # Exit
+                print("\nGoodbye!")
+                break
+
+            else:
+                print("Invalid choice. Please try again.")
+
+        except Exception as e:
+            logger.error(f"Error: {str(e)}")
+            print(f"\nError occurred: {str(e)}")
+
+        input("\nPress Enter to continue...")
+
 
 if __name__ == "__main__":
-    main()
-
-if __name__ == "__main__":
-    main()
-
+    # Run the async main function
+    asyncio.run(main())
