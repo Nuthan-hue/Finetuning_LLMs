@@ -168,11 +168,18 @@ class ModelTrainerAgent(BaseAgent):
         X = df.drop(columns=[target_column])
         y = df[target_column]
 
+        config = context.get("config", {})
+
         # Determine model type if not specified
         if not self.model_type:
-            self.model_type = ModelType.LIGHTGBM  # Default
-
-        config = context.get("config", {})
+            # Check if model type specified in config
+            model_type_str = config.get("model_type", "lightgbm")
+            if model_type_str == "xgboost":
+                self.model_type = ModelType.XGBOOST
+            elif model_type_str == "pytorch_mlp":
+                self.model_type = ModelType.PYTORCH_MLP
+            else:
+                self.model_type = ModelType.LIGHTGBM  # Default
 
         if self.model_type == ModelType.LIGHTGBM:
             return await self._train_lightgbm(X, y, config)
@@ -577,6 +584,12 @@ class ModelTrainerAgent(BaseAgent):
     def _preprocess_tabular_data(self, X: pd.DataFrame) -> pd.DataFrame:
         """Preprocess tabular data."""
         X_processed = X.copy()
+
+        # Remove ID columns if present (must match submission preprocessing)
+        id_columns = ['PassengerId', 'id', 'ID', 'Id']
+        for id_col in id_columns:
+            if id_col in X_processed.columns:
+                X_processed = X_processed.drop(columns=[id_col])
 
         # Handle categorical variables
         categorical_columns = X_processed.select_dtypes(include=['object']).columns

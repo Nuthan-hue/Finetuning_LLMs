@@ -26,8 +26,8 @@ class SubmissionAgent(BaseAgent):
         self.submissions_dir = Path(submissions_dir)
         self.submissions_dir.mkdir(parents=True, exist_ok=True)
 
-        # Set custom Kaggle config directory
-        self.kaggle_config_dir = Path("/Volumes/Crucial X9 Pro For Mac/Finetuning_LLMs/.kaggle")
+        # Set custom Kaggle config directory (use ~/.kaggle as standard)
+        self.kaggle_config_dir = Path.home() / ".kaggle"
 
     async def run(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -143,9 +143,19 @@ class SubmissionAgent(BaseAgent):
         # Generate predictions
         predictions = model.predict(X_test)
 
+        # Find ID column (try common names)
+        id_col = None
+        for col_name in ['PassengerId', 'id', 'ID', 'Id']:
+            if col_name in test_df.columns:
+                id_col = test_df[col_name]
+                break
+
+        if id_col is None:
+            id_col = range(len(predictions))
+
         # Create submission dataframe
         result_df = pd.DataFrame({
-            'id': test_df.get('id', range(len(predictions))),
+            'id': id_col,
             'prediction': predictions
         })
 
@@ -172,9 +182,19 @@ class SubmissionAgent(BaseAgent):
         # Generate predictions
         predictions = model.predict(dtest)
 
+        # Find ID column (try common names)
+        id_col = None
+        for col_name in ['PassengerId', 'id', 'ID', 'Id']:
+            if col_name in test_df.columns:
+                id_col = test_df[col_name]
+                break
+
+        if id_col is None:
+            id_col = range(len(predictions))
+
         # Create submission dataframe
         result_df = pd.DataFrame({
-            'id': test_df.get('id', range(len(predictions))),
+            'id': id_col,
             'prediction': predictions
         })
 
@@ -233,9 +253,19 @@ class SubmissionAgent(BaseAgent):
         with torch.no_grad():
             predictions = model(X_test_tensor).cpu().numpy().flatten()
 
+        # Find ID column (try common names)
+        id_col = None
+        for col_name in ['PassengerId', 'id', 'ID', 'Id']:
+            if col_name in test_df.columns:
+                id_col = test_df[col_name]
+                break
+
+        if id_col is None:
+            id_col = range(len(predictions))
+
         # Create submission dataframe
         result_df = pd.DataFrame({
-            'id': test_df.get('id', range(len(predictions))),
+            'id': id_col,
             'prediction': predictions
         })
 
@@ -321,8 +351,13 @@ class SubmissionAgent(BaseAgent):
         competition_name: str,
         format_spec: Dict[str, Any]
     ) -> Path:
-        """Format predictions into submission file."""
+        """Format predictions into submission file with auto-detection."""
         logger.info("Formatting submission file...")
+
+        # Auto-detect format if not specified
+        if not format_spec:
+            format_spec = await self._auto_detect_format(competition_name, predictions)
+            logger.info(f"Auto-detected format: {format_spec}")
 
         # Apply custom formatting if specified
         if format_spec:
@@ -338,6 +373,8 @@ class SubmissionAgent(BaseAgent):
                     predictions[col] = predictions[col].round()
                 elif transform == "binary":
                     predictions[col] = (predictions[col] > 0.5).astype(int)
+                elif transform == "int":
+                    predictions[col] = predictions[col].round().astype(int)
 
         # Save submission file
         submission_filename = f"{competition_name}_submission.csv"
@@ -347,6 +384,67 @@ class SubmissionAgent(BaseAgent):
         logger.info(f"Submission saved to: {submission_path}")
 
         return submission_path
+
+    async def _auto_detect_format(
+        self,
+        competition_name: str,
+        predictions: pd.DataFrame
+    ) -> Dict[str, Any]:
+        """Auto-detect submission format from sample submission file."""
+        logger.info("Auto-detecting submission format...")
+
+        # Try to find sample submission in data directory
+        data_path = Path("data/raw") / competition_name
+        sample_files = list(data_path.glob("*sample*.csv")) + list(data_path.glob("*submission*.csv"))
+
+        if sample_files:
+            sample_file = sample_files[0]
+            logger.info(f"Found sample submission: {sample_file.name}")
+
+            try:
+                sample_df = pd.read_csv(sample_file, nrows=5)
+                sample_columns = sample_df.columns.tolist()
+
+                # Detect ID column (usually first column)
+                id_col_name = sample_columns[0]
+
+                # Detect prediction column (usually second column or named 'target', 'label', etc.)
+                pred_col_name = sample_columns[1] if len(sample_columns) > 1 else "prediction"
+
+                # Determine transformation based on sample values
+                transformations = {}
+                if pred_col_name in sample_df.columns:
+                    sample_values = sample_df[pred_col_name].dropna()
+                    if len(sample_values) > 0:
+                        # Check if binary (only 0 and 1)
+                        unique_values = sample_values.unique()
+                        if len(unique_values) <= 2 and all(v in [0, 1] for v in unique_values):
+                            transformations[pred_col_name] = "binary"
+                        elif sample_values.dtype in ['int64', 'int32']:
+                            transformations[pred_col_name] = "int"
+                        elif all(sample_values == sample_values.round()):
+                            transformations[pred_col_name] = "round"
+
+                format_spec = {
+                    "column_mapping": {
+                        "id": id_col_name,
+                        "prediction": pred_col_name
+                    },
+                    "transformations": transformations
+                }
+
+                logger.info(f"Detected format - ID: {id_col_name}, Target: {pred_col_name}")
+                return format_spec
+
+            except Exception as e:
+                logger.warning(f"Could not parse sample submission: {e}")
+
+        # Fallback: use standard format
+        logger.warning("Using fallback submission format")
+        return {
+            "column_mapping": {},
+            "transformations": {}
+        }
 
     async def _submit_to_kaggle(
         self,
@@ -398,7 +496,7 @@ class SubmissionAgent(BaseAgent):
         df_processed = df.copy()
 
         # Remove ID column if present
-        id_columns = ['id', 'ID', 'Id']
+        id_columns = ['PassengerId', 'id', 'ID', 'Id']
         for id_col in id_columns:
             if id_col in df_processed.columns:
                 df_processed = df_processed.drop(columns=[id_col])

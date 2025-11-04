@@ -37,8 +37,8 @@ class DataCollectorAgent(BaseAgent):
         (self.data_dir / "processed").mkdir(exist_ok=True)
         (self.data_dir / "external").mkdir(exist_ok=True)
 
-        # Set custom Kaggle config directory
-        self.kaggle_config_dir = Path("/Volumes/Crucial X9 Pro For Mac/Finetuning_LLMs/.kaggle")
+        # Set custom Kaggle config directory (use ~/.kaggle as standard)
+        self.kaggle_config_dir = Path.home() / ".kaggle"
         kaggle_json_path = self.kaggle_config_dir / "kaggle.json"
 
         with open(kaggle_json_path, 'r') as f:

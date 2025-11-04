@@ -27,8 +27,8 @@ class LeaderboardMonitorAgent(BaseAgent):
         self.target_percentile = target_percentile
         self.leaderboard_history = []
 
-        # Set custom Kaggle config directory
-        self.kaggle_config_dir = Path("/Volumes/Crucial X9 Pro For Mac/Finetuning_LLMs/.kaggle")
+        # Set custom Kaggle config directory (use ~/.kaggle as standard)
+        self.kaggle_config_dir = Path.home() / ".kaggle"
 
     async def run(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
