@@ -6,6 +6,7 @@ the competition lifecycle.
 import logging
 from typing import Any, Dict
 
+from .optimization_ai import run_optimization_loop_ai
 from ..base import BaseAgent, AgentState
 from ..data_collector import DataCollector
 from ..model_trainer import ModelTrainer
@@ -18,7 +19,6 @@ from .phases import (
     run_submission,
     log_phase_results
 )
-from .optimization import run_optimization_loop
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +109,7 @@ class Orchestrator(BaseAgent):
 
             # Phase 4: Monitoring and Iteration Loop
             logger.info("\n=== PHASE 4: MONITORING & OPTIMIZATION ===")
-            final_results = await run_optimization_loop(
+            final_results = await run_optimization_loop_ai(
                 self,
                 data_results,
                 training_results,

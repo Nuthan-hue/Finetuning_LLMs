@@ -80,8 +80,28 @@ class Submitter(BaseAgent):
 
             self.results["submission_path"] = str(submission_path)
 
-            # Submit to Kaggle
-            if context.get("auto_submit", True):
+            # Submit to Kaggle (require explicit confirmation)
+            auto_submit = context.get("auto_submit", False)  # Changed default to False
+
+            if auto_submit:
+                logger.info(f"Submission file ready: {submission_path}")
+
+                # Ask for confirmation if in interactive mode
+                if context.get("interactive", True):
+                    logger.info("\n" + "="*60)
+                    logger.info("SUBMISSION READY")
+                    logger.info("="*60)
+                    logger.info(f"File: {submission_path.name}")
+                    logger.info(f"Competition: {competition_name}")
+                    response = input("\nSubmit to Kaggle? (yes/no): ").strip().lower()
+
+                    if response not in ['yes', 'y']:
+                        logger.info("Submission cancelled by user")
+                        self.results["submission_status"] = "cancelled"
+                        self.state = AgentState.COMPLETED
+                        return self.results
+
+                # Proceed with submission
                 submission_result = await submit_to_kaggle(
                     submission_path,
                     competition_name,
@@ -89,6 +109,9 @@ class Submitter(BaseAgent):
                     self.kaggle_config_dir
                 )
                 self.results.update(submission_result)
+            else:
+                logger.info(f"Submission file created: {submission_path}")
+                logger.info("Auto-submit is disabled. Use auto_submit=True to enable.")
 
             self.state = AgentState.COMPLETED
             logger.info("Submission completed successfully")

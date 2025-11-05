@@ -56,56 +56,36 @@ async def run_initial_training(
         # Use first dataset
         train_file = list(datasets.keys())[0]
 
-    # ═══════════════════════════════════════════════════════════
-    # 🤖 USE AI AGENT to identify target column (not hardcoded!)
-    # ═══════════════════════════════════════════════════════════
     if not target_column:
-        logger.info("🤖 Using AI to identify target column...")
+        logger.info("🤖 Using AI Agent to identify target column...")
 
-        try:
-            from ..llm_agents import DataAnalysisAgent
+        from ..llm_agents import DataAnalysisAgent
 
-            data_agent = DataAnalysisAgent()
+        data_agent = DataAnalysisAgent()
 
-            # Ask AI to analyze the dataset
-            ai_analysis = await data_agent.analyze_and_suggest(
-                dataset_info=data_results.get("analysis_report", {}),
-                competition_name=orchestrator.competition_name
+        # Ask AI to analyze the dataset
+        ai_analysis = await data_agent.analyze_and_suggest(
+            dataset_info=data_results.get("analysis_report", {}),
+            competition_name=orchestrator.competition_name
+        )
+
+        target_column = ai_analysis.get("target_column")
+        confidence = ai_analysis.get("target_confidence", "unknown")
+
+        if not target_column:
+            raise RuntimeError(
+                "❌ AI Agent failed to identify target column. "
+                "This is a pure agentic AI system - no hardcoded fallbacks! "
+                "Make sure GEMINI_API_KEY is set in your environment."
             )
 
-            target_column = ai_analysis.get("target_column")
-            confidence = ai_analysis.get("target_confidence", "unknown")
+        logger.info(f"🤖 AI identified target: {target_column} (confidence: {confidence})")
 
-            logger.info(f"🤖 AI identified target: {target_column} (confidence: {confidence})")
-
-            # Log AI suggestions
-            if "preprocessing" in ai_analysis:
-                logger.info(f"📋 AI preprocessing suggestions: {ai_analysis['preprocessing']}")
-            if "feature_engineering" in ai_analysis:
-                logger.info(f"💡 AI feature ideas: {ai_analysis['feature_engineering'][:3]}")
-
-        except Exception as e:
-            logger.warning(f"⚠️  AI agent not available or failed: {e}")
-            logger.info("Falling back to rule-based target detection...")
-
-            # FALLBACK: Hardcoded rules if AI fails
-            columns = datasets[train_file]["columns"]
-            potential_targets = ['Survived', 'target', 'label', 'class', 'y', 'outcome']
-
-            for col in columns:
-                if col in potential_targets or col.lower() in [t.lower() for t in potential_targets]:
-                    target_column = col
-                    logger.info(f"Auto-detected target column: {target_column}")
-                    break
-
-            if not target_column:
-                # Fallback: use second column if first is ID-like, otherwise last
-                if columns[0].lower() in ['id', 'passengerid', 'customerid']:
-                    target_column = columns[1]
-                    logger.warning(f"Using second column as target: {target_column}")
-                else:
-                    target_column = columns[-1]
-                    logger.warning(f"Using last column as target: {target_column}")
+        # Log AI suggestions
+        if "preprocessing" in ai_analysis:
+            logger.info(f"📋 AI preprocessing suggestions: {ai_analysis['preprocessing']}")
+        if "feature_engineering" in ai_analysis:
+            logger.info(f"💡 AI feature ideas: {ai_analysis['feature_engineering'][:3]}")
 
     logger.info(f"Using training file: {train_file}")
     logger.info(f"Target column: {target_column}")
@@ -157,6 +137,7 @@ async def run_submission(
         "model_type": training_results["model_type"],
         "submission_message": f"Iteration {orchestrator.iteration} - Automated submission",
         "auto_submit": True,
+        "interactive": True,  # Ask for confirmation before submitting
         # Format spec is auto-detected by SubmissionAgent
     }
 

@@ -11,11 +11,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from agents import (
-    OrchestratorAgent,
-    DataCollectorAgent,
-    ModelTrainerAgent,
-    SubmissionAgent,
-    LeaderboardMonitorAgent
+    Orchestrator,
+    DataCollector,
+    ModelTrainer,
+    Submitter,
+    LeaderboardMonitor
 )
 
 # Configure logging
@@ -41,8 +41,8 @@ async def run_full_competition(competition_name: str, target_percentile: float =
     """
     logger.info(f"Starting full competition workflow for: {competition_name}")
 
-    # Initialize orchestrator(Object
-    orchestrator = OrchestratorAgent(
+    # Initialize orchestrator
+    orchestrator = Orchestrator(
         competition_name=competition_name,
         target_percentile=target_percentile,
         max_iterations=5
@@ -94,7 +94,7 @@ async def run_data_collection_only(competition_name: str):
     logger.info(f"Running data collection for: {competition_name}")
 
     # Initialize data collector
-    collector = DataCollectorAgent()
+    collector = DataCollector()
 
     # Run data collection
     context = {
@@ -127,7 +127,7 @@ async def run_training_only(data_path: str, target_column: str):
     logger.info("Running model training...")
 
     # Initialize trainer
-    trainer = ModelTrainerAgent()
+    trainer = ModelTrainer()
 
     # Run training
     context = {
@@ -208,7 +208,7 @@ async def main():
             elif choice == "4":
                 # Check leaderboard
                 competition_name = input("Enter competition name: ").strip()
-                monitor = LeaderboardMonitorAgent()
+                monitor = LeaderboardMonitor()
                 results = await monitor.run({"competition_name": competition_name})
 
                 print("\nLeaderboard Status:")
