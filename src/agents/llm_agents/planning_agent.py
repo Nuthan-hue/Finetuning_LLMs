@@ -46,19 +46,21 @@ class PlanningAgent:
     async def create_plan(
         self,
         problem_understanding: Dict[str, Any],
-        data_analysis: Dict[str, Any],
+        dataset_info: Dict[str, Any],
         competition_name: str
     ) -> Dict[str, Any]:
         """
-        Create comprehensive execution plan based on problem and data understanding.
+        Create comprehensive execution plan based on problem understanding and raw dataset info.
+
+        This method does BOTH data analysis AND planning in one comprehensive step.
 
         Args:
             problem_understanding: Output from ProblemUnderstandingAgent
-            data_analysis: Output from DataAnalysisAgent
+            dataset_info: Raw dataset information (from DataCollector analysis_report)
             competition_name: Name of the competition
 
         Returns:
-            Dictionary containing detailed execution plan:
+            Dictionary containing detailed execution plan with embedded data analysis:
             {
                 "competition_name": str,
                 "models_to_try": [
@@ -119,17 +121,17 @@ class PlanningAgent:
                 ]
             }
         """
-        logger.info(f"🧠 Creating execution plan for: {competition_name}")
+        logger.info(f"🧠 Creating comprehensive plan (data analysis + execution) for: {competition_name}")
 
-        # Build comprehensive planning prompt
+        # Build comprehensive planning prompt (includes data analysis)
         prompt = self._build_planning_prompt(
             problem_understanding,
-            data_analysis,
+            dataset_info,
             competition_name
         )
 
         try:
-            # Get AI planning
+            # Get AI planning (does BOTH analysis and planning)
             response = self.model.generate_content(prompt)
 
             # Parse JSON response
@@ -140,10 +142,14 @@ class PlanningAgent:
             plan["ai_model"] = self.model_name
             plan["based_on"] = {
                 "problem_understanding": problem_understanding.get("task_type"),
-                "data_modality": data_analysis.get("data_modality")
+                "problem_type": problem_understanding.get("competition_type")
             }
 
-            logger.info(f"✅ Plan created: {len(plan['models_to_try'])} models, {len(plan['feature_engineering_plan'])} features")
+            logger.info(f"✅ Comprehensive plan created!")
+            logger.info(f"   Target: {plan.get('data_analysis', {}).get('target_column', 'TBD')}")
+            logger.info(f"   Models: {len(plan['models_to_try'])}")
+            logger.info(f"   Features: {len(plan['feature_engineering_plan'])}")
+            logger.info(f"   Preprocessing steps: {len(plan['preprocessing_plan'])}")
 
             return plan
 
