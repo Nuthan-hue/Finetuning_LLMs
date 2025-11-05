@@ -417,6 +417,11 @@ class DataPipelineExecutor:
         """Final cleanup and validation."""
         logger.info("📋 Step 8: Final cleanup")
 
+        # CRITICAL: Sanitize column names for LightGBM/XGBoost
+        # They don't support special characters like: []<>"':{}
+        logger.info("   Sanitizing column names for LightGBM/XGBoost...")
+        df = self._sanitize_column_names(df)
+
         # Remove any remaining NaN/inf values
         df = df.replace([np.inf, -np.inf], np.nan)
         df = df.fillna(0)
@@ -428,6 +433,41 @@ class DataPipelineExecutor:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
         logger.info(f"   Final shape: {df.shape}")
+        logger.info(f"   Final columns: {list(df.columns)[:10]}...")
+        return df
+
+    def _sanitize_column_names(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Sanitize column names to be compatible with LightGBM/XGBoost.
+
+        LightGBM doesn't support: []<>":{}
+        We'll replace them with safe characters.
+        """
+        import re
+
+        new_columns = {}
+        for col in df.columns:
+            # Replace special characters with underscore
+            sanitized = re.sub(r'[^a-zA-Z0-9_]', '_', str(col))
+            # Remove consecutive underscores
+            sanitized = re.sub(r'_+', '_', sanitized)
+            # Remove leading/trailing underscores
+            sanitized = sanitized.strip('_')
+
+            # Ensure no duplicates
+            if sanitized in new_columns.values():
+                i = 1
+                while f"{sanitized}_{i}" in new_columns.values():
+                    i += 1
+                sanitized = f"{sanitized}_{i}"
+
+            if col != sanitized:
+                logger.debug(f"      Renamed: '{col}' → '{sanitized}'")
+                new_columns[col] = sanitized
+            else:
+                new_columns[col] = col
+
+        df = df.rename(columns=new_columns)
         return df
 
     # ═══════════════════════════════════════════════════════════════════
