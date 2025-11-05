@@ -14,7 +14,10 @@ from ..submission import Submitter
 from ..leaderboard import LeaderboardMonitor
 
 from .phases import (
+    run_problem_understanding,
     run_data_collection,
+    run_data_analysis,
+    run_planning,
     run_initial_training,
     run_submission,
     log_phase_results
@@ -84,13 +87,39 @@ class Orchestrator(BaseAgent):
             logger.info(f"Starting orchestration for competition: {competition_name}")
             logger.info(f"Target: Top {self.target_percentile * 100}%")
 
-            # Phase 1: Initial Data Collection and Analysis
-            logger.info("\n=== PHASE 1: DATA COLLECTION ===")
+            # Phase 1: Problem Understanding (AI reads competition BEFORE data)
+            logger.info("\n" + "=" * 70)
+            logger.info("STARTING AI-FIRST WORKFLOW")
+            logger.info("=" * 70)
+            problem_results = await run_problem_understanding(self, context)
+            problem_understanding = problem_results["problem_understanding"]
+            log_phase_results("Problem Understanding", problem_results)
+
+            # Phase 2: Data Collection
+            logger.info("\n=== PHASE 2: DATA COLLECTION ===")
             data_results = await run_data_collection(self, context)
             log_phase_results("Data Collection", data_results)
 
-            # Phase 2: Initial Model Training
-            logger.info("\n=== PHASE 2: INITIAL MODEL TRAINING ===")
+            # Phase 3: AI Data Analysis (with problem context)
+            data_analysis_results = await run_data_analysis(
+                self,
+                data_results,
+                problem_understanding
+            )
+            ai_analysis = data_analysis_results["ai_analysis"]
+            log_phase_results("Data Analysis", data_analysis_results)
+
+            # Phase 4: AI Planning (create execution plan)
+            planning_results = await run_planning(
+                self,
+                problem_understanding,
+                ai_analysis
+            )
+            execution_plan = planning_results["execution_plan"]
+            log_phase_results("Planning", planning_results)
+
+            # Phase 5: Model Training (execute the plan)
+            logger.info("\n=== PHASE 5: MODEL TRAINING (Executing Plan) ===")
             training_results = await run_initial_training(
                 self,
                 data_results,
@@ -98,8 +127,8 @@ class Orchestrator(BaseAgent):
             )
             log_phase_results("Initial Training", training_results)
 
-            # Phase 3: First Submission
-            logger.info("\n=== PHASE 3: FIRST SUBMISSION ===")
+            # Phase 6: First Submission
+            logger.info("\n=== PHASE 6: FIRST SUBMISSION ===")
             submission_results = await run_submission(
                 self,
                 training_results,
@@ -107,8 +136,8 @@ class Orchestrator(BaseAgent):
             )
             log_phase_results("Submission", submission_results)
 
-            # Phase 4: Monitoring and Iteration Loop
-            logger.info("\n=== PHASE 4: MONITORING & OPTIMIZATION ===")
+            # Phase 7: Monitoring and Iteration Loop
+            logger.info("\n=== PHASE 7: MONITORING & OPTIMIZATION ===")
             final_results = await run_optimization_loop_ai(
                 self,
                 data_results,

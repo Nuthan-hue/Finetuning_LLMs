@@ -7,8 +7,49 @@ from typing import Any, Dict
 from pathlib import Path
 
 from ..base import AgentState
+from ..llm_agents import ProblemUnderstandingAgent, DataAnalysisAgent, PlanningAgent
 
 logger = logging.getLogger(__name__)
+
+
+async def run_problem_understanding(
+    orchestrator,
+    context: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Execute problem understanding phase.
+
+    This is the FIRST phase - AI reads and understands the competition problem
+    BEFORE looking at any data.
+
+    Args:
+        orchestrator: Orchestrator instance
+        context: Execution context
+
+    Returns:
+        Dictionary containing problem understanding
+    """
+    logger.info("=" * 70)
+    logger.info("PHASE 1: PROBLEM UNDERSTANDING")
+    logger.info("=" * 70)
+
+    # Initialize Problem Understanding Agent
+    problem_agent = ProblemUnderstandingAgent()
+
+    # Understand the competition
+    understanding = await problem_agent.understand_competition(
+        orchestrator.competition_name
+    )
+
+    # Display summary
+    summary = problem_agent.get_problem_summary(understanding)
+    print(summary)
+    logger.info("Problem understanding completed")
+
+    return {
+        "problem_understanding": understanding,
+        "competition_name": orchestrator.competition_name
+    }
 
 
 async def run_data_collection(orchestrator, context: Dict[str, Any]) -> Dict[str, Any]:
@@ -28,6 +69,87 @@ async def run_data_collection(orchestrator, context: Dict[str, Any]) -> Dict[str
         raise RuntimeError(f"Data collection failed: {orchestrator.data_collector.error}")
 
     return results
+
+
+async def run_data_analysis(
+    orchestrator,
+    data_results: Dict[str, Any],
+    problem_understanding: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Execute data analysis phase with problem context.
+
+    Args:
+        orchestrator: Orchestrator instance
+        data_results: Results from data collection
+        problem_understanding: Results from problem understanding
+
+    Returns:
+        Dictionary containing AI data analysis
+    """
+    logger.info("=" * 70)
+    logger.info("PHASE 3: AI DATA ANALYSIS")
+    logger.info("=" * 70)
+
+    # Initialize Data Analysis Agent
+    data_agent = DataAnalysisAgent()
+
+    # Analyze data with problem context
+    ai_analysis = await data_agent.analyze_and_suggest(
+        dataset_info=data_results.get("analysis_report", {}),
+        competition_name=orchestrator.competition_name
+    )
+
+    logger.info(f"✅ AI Analysis completed")
+    logger.info(f"   Target: {ai_analysis.get('target_column')}")
+    logger.info(f"   Task: {ai_analysis.get('task_type')}")
+    logger.info(f"   Features suggested: {len(ai_analysis.get('feature_engineering', []))}")
+
+    return {
+        "ai_analysis": ai_analysis,
+        "competition_name": orchestrator.competition_name
+    }
+
+
+async def run_planning(
+    orchestrator,
+    problem_understanding: Dict[str, Any],
+    data_analysis: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Execute planning phase - AI creates comprehensive execution plan.
+
+    Args:
+        orchestrator: Orchestrator instance
+        problem_understanding: Results from problem understanding
+        data_analysis: Results from data analysis
+
+    Returns:
+        Dictionary containing execution plan
+    """
+    logger.info("=" * 70)
+    logger.info("PHASE 4: AI PLANNING")
+    logger.info("=" * 70)
+
+    # Initialize Planning Agent
+    planning_agent = PlanningAgent()
+
+    # Create comprehensive plan
+    execution_plan = await planning_agent.create_plan(
+        problem_understanding=problem_understanding,
+        data_analysis=data_analysis,
+        competition_name=orchestrator.competition_name
+    )
+
+    # Display plan summary
+    summary = planning_agent.get_plan_summary(execution_plan)
+    print(summary)
+    logger.info("Planning completed")
+
+    return {
+        "execution_plan": execution_plan,
+        "competition_name": orchestrator.competition_name
+    }
 
 
 async def run_initial_training(
