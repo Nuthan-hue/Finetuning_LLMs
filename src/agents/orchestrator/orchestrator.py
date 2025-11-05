@@ -1,16 +1,16 @@
 """
-Orchestrator Agent
-Central control unit that coordinates all specialized agents and manages
+Orchestrator
+Central coordinator that manages all workflow components and oversees
 the competition lifecycle.
 """
 import logging
 from typing import Any, Dict
 
 from ..base import BaseAgent, AgentState
-from ..data_collector import DataCollectorAgent
-from ..model_trainer import ModelTrainerAgent
-from ..submission import SubmissionAgent
-from ..leaderboard import LeaderboardMonitorAgent
+from ..data_collector import DataCollector
+from ..model_trainer import ModelTrainer
+from ..submission import Submitter
+from ..leaderboard import LeaderboardMonitor
 
 from .phases import (
     run_data_collection,
@@ -23,8 +23,8 @@ from .optimization import run_optimization_loop
 logger = logging.getLogger(__name__)
 
 
-class OrchestratorAgent(BaseAgent):
-    """Central orchestrator that manages the entire competition workflow."""
+class Orchestrator(BaseAgent):
+    """Central coordinator that manages the entire competition workflow."""
 
     def __init__(
         self,
@@ -41,11 +41,11 @@ class OrchestratorAgent(BaseAgent):
         self.target_percentile = target_percentile
         self.max_iterations = max_iterations
 
-        # Initialize specialized agents
-        self.data_collector = DataCollectorAgent(data_dir=data_dir)
-        self.model_trainer = ModelTrainerAgent(models_dir=models_dir)
-        self.submission_agent = SubmissionAgent(submissions_dir=submissions_dir)
-        self.leaderboard_monitor = LeaderboardMonitorAgent(
+        # Initialize workflow components
+        self.data_collector = DataCollector(data_dir=data_dir)
+        self.model_trainer = ModelTrainer(models_dir=models_dir)
+        self.submission_agent = Submitter(submissions_dir=submissions_dir)
+        self.leaderboard_monitor = LeaderboardMonitor(
             target_percentile=target_percentile
         )
 

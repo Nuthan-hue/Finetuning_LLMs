@@ -1,8 +1,8 @@
 """
 Orchestrator Package
-Central orchestrator for managing competition workflow.
+Central coordinator for managing competition workflow.
 """
-from .agent import OrchestratorAgent
+from .orchestrator import Orchestrator
 from .strategies import (
     improve_training_config,
     select_optimization_strategy,
@@ -10,7 +10,7 @@ from .strategies import (
 )
 
 __all__ = [
-    "OrchestratorAgent",
+    "Orchestrator",
     "improve_training_config",
     "select_optimization_strategy",
     "calculate_performance_gap"

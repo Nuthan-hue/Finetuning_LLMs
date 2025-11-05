@@ -4,79 +4,54 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
 
 # Virtual Environment
+.venv/
 venv/
 ENV/
 env/
-.env
-/Volumes/Crucial X9 Pro For Mac/Finetuning_LLMs/.env
-# Environment variables
-*.env
-.env.*
 
-
-# IDEs and editors
-.idea/
+# IDEs
 .vscode/
+.idea/
 *.swp
 *.swo
-.project
-.pydevproject
-.settings/
+*~
 
-# Jupyter Notebook
-.ipynb_checkpoints
+# OS
+.DS_Store
+Thumbs.db
 
-# Project specific
+# Kaggle data
+competitions/*/
+*.csv
+*.zip
+!sample_submission.csv
+
+# Models
+models/*.txt
+models/*.json
+models/*.pt
+*.pkl
+*.h5
+
+# Logs
 logs/
-data/raw/
-data/processed/
-data/external/
-models/checkpoints/
-models/final/
 *.log
 
-# Kaggle
-.kaggle/
-kaggle.json
-
-# Docker
-.docker/
+# Jupyter
+.ipynb_checkpoints/
 
 # Testing
+.pytest_cache/
 .coverage
 htmlcov/
-.pytest_cache/
-.tox/
 
-# Distribution / packaging
-*.tar.gz
-*.zip
+# Environment variables
+.env
+.env.local
 
-# Model files
-*.pt
-*.pth
-*.h5
-*.keras
-*.onnx
-*.pkl
-
-# Credentials
-credentials.json
-secrets.yaml
+# Temporary files
+tmp/
+temp/
+*.tmp

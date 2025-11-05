@@ -1,6 +1,6 @@
 """
-Data Collector Agent
-Main agent class for data collection and initial analysis.
+Data Collector
+Workflow component for data collection and initial analysis.
 """
 import json
 import logging
@@ -18,8 +18,8 @@ from .utils import setup_data_directories
 logger = logging.getLogger(__name__)
 
 
-class DataCollectorAgent(BaseAgent):
-    """Agent responsible for data collection and initial analysis."""
+class DataCollector(BaseAgent):
+    """Worker responsible for data collection and initial analysis."""
 
     def __init__(
         self,
@@ -27,10 +27,10 @@ class DataCollectorAgent(BaseAgent):
         data_dir: str = "data",
     ):
         """
-        Initialize the DataCollectorAgent.
+        Initialize the DataCollector.
 
         Args:
-            name: Name of the agent
+            name: Name of the worker
             data_dir: Base directory for storing data
         """
         super().__init__(name)

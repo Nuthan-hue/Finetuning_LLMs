@@ -1,6 +1,6 @@
 """
-Submission Agent
-Responsible for generating predictions and submitting to Kaggle competitions.
+Submitter
+Workflow component for generating predictions and submitting to Kaggle competitions.
 """
 import logging
 from typing import Dict, Any, Optional
@@ -14,8 +14,8 @@ from .kaggle_api import submit_to_kaggle
 logger = logging.getLogger(__name__)
 
 
-class SubmissionAgent(BaseAgent):
-    """Agent responsible for generating predictions and submitting solutions."""
+class Submitter(BaseAgent):
+    """Worker responsible for generating predictions and submitting solutions."""
 
     def __init__(
         self,

@@ -2,7 +2,7 @@
 Model Trainer Package
 Provides model training capabilities for tabular, NLP, and vision tasks.
 """
-from .agent import ModelTrainerAgent
+from .trainer import ModelTrainer
 from .detection import TaskType, ModelType, detect_task_type, determine_model_type
 from .models import (
     train_lightgbm,
@@ -19,8 +19,8 @@ from .preprocessing import (
 )
 
 __all__ = [
-    # Main agent class
-    "ModelTrainerAgent",
+    # Main worker class
+    "ModelTrainer",
 
     # Detection utilities
     "TaskType",

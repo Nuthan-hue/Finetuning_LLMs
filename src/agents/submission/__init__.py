@@ -2,7 +2,7 @@
 Submission Package
 Handles prediction generation and submission to Kaggle competitions.
 """
-from .agent import SubmissionAgent
+from .submitter import Submitter
 from .predictions import (
     generate_predictions,
     predict_lightgbm,
@@ -16,7 +16,7 @@ from .preprocessing import preprocess_tabular_data, detect_text_column
 from .utils import find_id_column, create_submission_dataframe
 
 __all__ = [
-    "SubmissionAgent",
+    "Submitter",
     "generate_predictions",
     "predict_lightgbm",
     "predict_xgboost",

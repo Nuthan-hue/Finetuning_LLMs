@@ -1,26 +1,26 @@
 """
 Multi-Agent System for Kaggle Competitions
 
-This package contains specialized agents for automating Kaggle competition workflows.
+This package contains specialized workflow components and LLM agents for automating Kaggle competitions.
 """
 
 from .base import BaseAgent, AgentState
-from .orchestrator import OrchestratorAgent
-from .data_collector import DataCollectorAgent
-from .model_trainer import ModelTrainerAgent, TaskType, ModelType
-from .submission import SubmissionAgent
-from .leaderboard import LeaderboardMonitorAgent
+from .orchestrator import Orchestrator
+from .data_collector import DataCollector
+from .model_trainer import ModelTrainer, TaskType, ModelType
+from .submission import Submitter
+from .leaderboard import LeaderboardMonitor
 
 __all__ = [
     "BaseAgent",
     "AgentState",
-    "OrchestratorAgent",
-    "DataCollectorAgent",
-    "ModelTrainerAgent",
+    "Orchestrator",
+    "DataCollector",
+    "ModelTrainer",
     "TaskType",
     "ModelType",
-    "SubmissionAgent",
-    "LeaderboardMonitorAgent",
+    "Submitter",
+    "LeaderboardMonitor",
 ]
 
 __version__ = "0.1.0"

@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from agents.orchestrator import OrchestratorAgent
+from agents.orchestrator import Orchestrator
 
 # Setup logging
 logging.basicConfig(
@@ -146,7 +146,7 @@ async def run_competition(competition_name: str, settings: dict):
     print(f"   Max Iterations: {settings['max_iterations']}")
 
     # Create orchestrator
-    orchestrator = OrchestratorAgent(
+    orchestrator = Orchestrator(
         competition_name=competition_name,
         target_percentile=settings['target_percentile'],
         max_iterations=settings['max_iterations']

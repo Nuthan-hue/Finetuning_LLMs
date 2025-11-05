@@ -1,6 +1,6 @@
 """
-Leaderboard Monitor Agent
-Main agent class for tracking competition leaderboard and performance metrics.
+Leaderboard Monitor
+Workflow component for tracking competition leaderboard and performance metrics.
 """
 import logging
 from typing import Dict, Any, Optional, List
@@ -14,8 +14,8 @@ from .analysis import generate_recommendation, calculate_performance_trend
 logger = logging.getLogger(__name__)
 
 
-class LeaderboardMonitorAgent(BaseAgent):
-    """Agent responsible for monitoring competition leaderboard."""
+class LeaderboardMonitor(BaseAgent):
+    """Worker responsible for monitoring competition leaderboard."""
 
     def __init__(
         self,
@@ -23,10 +23,10 @@ class LeaderboardMonitorAgent(BaseAgent):
         target_percentile: float = 0.20
     ):
         """
-        Initialize the LeaderboardMonitorAgent.
+        Initialize the LeaderboardMonitor.
 
         Args:
-            name: Name of the agent
+            name: Name of the worker
             target_percentile: Target percentile rank to achieve (0.0-1.0)
         """
         super().__init__(name)

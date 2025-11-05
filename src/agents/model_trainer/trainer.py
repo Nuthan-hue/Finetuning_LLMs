@@ -1,6 +1,6 @@
 """
-Model Trainer Agent
-Main agent class responsible for model selection, training, and optimization.
+Model Trainer
+Workflow component responsible for model selection, training, and optimization.
 """
 import logging
 from typing import Dict, Any, Optional
@@ -20,8 +20,8 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
-class ModelTrainerAgent(BaseAgent):
-    """Agent responsible for model training and optimization."""
+class ModelTrainer(BaseAgent):
+    """Worker responsible for model training and optimization."""
 
     def __init__(
         self,
