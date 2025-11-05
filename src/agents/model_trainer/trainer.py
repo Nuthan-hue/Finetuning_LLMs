@@ -10,6 +10,7 @@ import pandas as pd
 from ..base import BaseAgent, AgentState
 
 from .detection import TaskType, ModelType, detect_task_type, determine_model_type
+from .data_pipeline import DataPipelineExecutor
 from .models import (
     train_lightgbm,
     train_xgboost,
@@ -51,8 +52,8 @@ class ModelTrainer(BaseAgent):
             context: Dictionary containing:
                 - data_path: str - Path to training data
                 - target_column: str - Name of target column
-                - task_type: str - Type of task (optional, auto-detected)
-                - model_type: str - Specific model to use (optional)
+                - ai_analysis: Dict - Complete AI analysis (REQUIRED)
+                - competition_name: str - Competition name
                 - config: Dict - Training configuration (optional)
 
         Returns:
@@ -107,30 +108,39 @@ class ModelTrainer(BaseAgent):
         context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        Train a model for tabular data.
+        Train a model for tabular data using complete AI-guided pipeline.
 
         Args:
             data_path: Path to training data
             target_column: Name of target column
-            context: Context dictionary with configuration
+            context: Context dictionary with ai_analysis
 
         Returns:
             Dictionary with training results
         """
-        logger.info("Training tabular model...")
+        logger.info("Training tabular model with AI-guided preprocessing...")
 
-        # Load data
-        df = pd.read_csv(data_path)
+        # 🤖 GET AI ANALYSIS
+        ai_analysis = context.get("ai_analysis", {})
+        competition_name = context.get("competition_name", "unknown")
 
-        # Prepare features and target
-        X = df.drop(columns=[target_column])
-        y = df[target_column]
+        if not ai_analysis:
+            raise RuntimeError(
+                "❌ No AI analysis provided! "
+                "Pure agentic AI system requires ai_analysis in context."
+            )
+
+        # 🤖 EXECUTE COMPLETE AI-GUIDED DATA PIPELINE
+        pipeline = DataPipelineExecutor(competition_name)
+        X, y = await pipeline.execute(data_path, ai_analysis, target_column)
 
         config = context.get("config", {})
 
-        # Determine model type if not specified
+        # 🤖 AI-RECOMMENDED MODEL SELECTION
         if not self.model_type:
-            self.model_type = determine_model_type(config, default=ModelType.LIGHTGBM)
+            self.model_type = self._select_model_from_ai(ai_analysis, config)
+
+        logger.info(f"🤖 Using AI-recommended model: {self.model_type.value}")
 
         # Train the appropriate model
         if self.model_type == ModelType.LIGHTGBM:
@@ -190,3 +200,55 @@ class ModelTrainer(BaseAgent):
     def get_model(self):
         """Get the trained model."""
         return self.model
+
+    def _select_model_from_ai(
+        self,
+        ai_analysis: Dict[str, Any],
+        config: Dict[str, Any]
+    ) -> ModelType:
+        """
+        Select model based on AI recommendations.
+
+        Args:
+            ai_analysis: AI analysis with recommended_models
+            config: User configuration (can override AI)
+
+        Returns:
+            ModelType enum
+        """
+        # Check if user specified a model (overrides AI)
+        if "model_type" in config:
+            model_str = config["model_type"]
+            logger.info(f"🔧 User override: {model_str}")
+            if model_str == "xgboost":
+                return ModelType.XGBOOST
+            elif model_str == "pytorch_mlp":
+                return ModelType.PYTORCH_MLP
+            elif model_str == "transformer":
+                return ModelType.TRANSFORMER
+            else:
+                return ModelType.LIGHTGBM
+
+        # Use AI recommendation
+        recommended_models = ai_analysis.get("recommended_models", [])
+
+        if not recommended_models:
+            logger.warning("⚠️  No AI model recommendation - using LightGBM")
+            return ModelType.LIGHTGBM
+
+        # Pick first recommended model
+        model_name = recommended_models[0].lower()
+        logger.info(f"🤖 AI recommends: {model_name}")
+
+        if "xgboost" in model_name:
+            return ModelType.XGBOOST
+        elif "pytorch" in model_name or "mlp" in model_name or "neural" in model_name:
+            return ModelType.PYTORCH_MLP
+        elif "lightgbm" in model_name or "lgbm" in model_name:
+            return ModelType.LIGHTGBM
+        elif "catboost" in model_name:
+            # Default to LightGBM if CatBoost not available
+            logger.info("   CatBoost not implemented - using LightGBM")
+            return ModelType.LIGHTGBM
+        else:
+            return ModelType.LIGHTGBM

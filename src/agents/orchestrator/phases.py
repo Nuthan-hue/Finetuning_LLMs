@@ -44,6 +44,7 @@ async def run_initial_training(
 
     target_column = None
     train_file = None
+    ai_analysis = None  # Initialize to avoid reference errors
 
     # Find training file and target column
     for filename, dataset_info in datasets.items():
@@ -56,7 +57,8 @@ async def run_initial_training(
         # Use first dataset
         train_file = list(datasets.keys())[0]
 
-    if not target_column:
+    # ALWAYS use AI agent for complete analysis
+    if not target_column or not ai_analysis:
         logger.info("🤖 Using AI Agent to identify target column...")
 
         from ..llm_agents import DataAnalysisAgent
@@ -90,13 +92,15 @@ async def run_initial_training(
     logger.info(f"Using training file: {train_file}")
     logger.info(f"Target column: {target_column}")
 
-    # Prepare training context
+    # Prepare training context WITH AI ANALYSIS
     data_path = Path(data_results["data_path"]) / train_file
 
     training_context = {
         "data_path": str(data_path),
         "target_column": target_column,
-        "config": training_config
+        "config": training_config,
+        "ai_analysis": ai_analysis,  # 🤖 Pass AI recommendations to trainer!
+        "competition_name": orchestrator.competition_name
     }
 
     results = await orchestrator.model_trainer.run(training_context)
