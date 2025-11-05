@@ -13,24 +13,27 @@ class DataAnalysisAgent(BaseLLMAgent):
     """AI agent that intelligently analyzes data and suggests preprocessing."""
 
     def __init__(self):
-        system_prompt = """You are an expert data scientist specializing in Kaggle competitions.
+        system_prompt = """You are an expert Kaggle Grandmaster with deep experience across ALL competition types.
 
-Your role is to analyze datasets and provide actionable preprocessing and feature engineering recommendations.
+Your role is to analyze competition datasets and provide COMPLETE task understanding.
 
 You excel at:
-- Identifying data quality issues (missing values, outliers, imbalance)
-- Detecting feature types (numerical, categorical, text, datetime)
-- Suggesting appropriate preprocessing strategies
-- Recommending feature engineering approaches
-- Identifying the target variable
-- Detecting data leakage risks
+- Identifying exact task type (binary_classification, multiclass, regression, clustering, time_series, etc.)
+- Detecting data modality (tabular, nlp, computer_vision, time_series, mixed)
+- Finding target variables (or identifying unsupervised tasks with NO target)
+- Understanding submission formats from sample_submission.csv
+- Inferring evaluation metrics (accuracy, RMSE, F1, AUC, RMSLE, etc.)
+- Analyzing target characteristics (binary, classes, distribution, imbalance)
+- Recommending optimal models for the specific competition type
+- Suggesting preprocessing and feature engineering strategies
+- Detecting data leakage and competition-specific gotchas
 
-Provide specific, actionable recommendations that improve model performance."""
+Provide DETAILED, Kaggle-specific analysis that enables automated competition solving."""
 
         super().__init__(
             name="DataAnalysisAgent",
             model_name="gemini-2.0-flash-exp",
-            temperature=0.3,  # Lower temperature for more focused analysis
+            temperature=0.2,  # Very low temperature for precise analysis
             system_prompt=system_prompt
         )
 
@@ -59,61 +62,89 @@ Provide specific, actionable recommendations that improve model performance."""
         # Build detailed dataset description
         dataset_desc = self._format_dataset_info(dataset_info)
 
-        prompt = f"""Analyze this Kaggle competition dataset and provide recommendations.
+        prompt = f"""Analyze this Kaggle competition dataset and provide COMPLETE task understanding.
 
 ## Competition: {competition_name}
 
 ## Dataset Information
 {dataset_desc}
 
-Please analyze and provide:
+Look for sample_submission.csv to understand the output format!
 
-1. **Target Variable**: Which column is most likely the target? Why?
-2. **Data Quality Issues**: Missing values, outliers, class imbalance, etc.
-3. **Feature Types**: Categorize features (numerical, categorical, text, datetime, ID)
-4. **Preprocessing Strategy**:
-   - How to handle missing values?
-   - How to encode categorical features?
-   - Should we scale/normalize features?
-   - Any feature transformations needed (log, binning, etc.)?
-5. **Feature Engineering**: Top 3-5 new features to create
-6. **Potential Issues**: Data leakage risks, correlated features, etc.
-7. **Model Recommendations**: Which ML models suit this data?
+Provide detailed Kaggle-specific analysis in JSON format:
 
-Respond with JSON:
 {{
-    "target_column": "column_name",
+    "task_type": "binary_classification|multiclass_classification|regression|clustering|time_series_forecasting|ranking|anomaly_detection|object_detection|segmentation|nlp_classification|nlp_generation",
+    "data_modality": "tabular|nlp|computer_vision|time_series|audio|mixed",
+    "has_target": true|false,
+    "target_column": "column_name or null if unsupervised",
     "target_confidence": "high|medium|low",
-    "task_type": "binary_classification|multiclass|regression",
+    "target_characteristics": {{
+        "type": "binary|multiclass|continuous|ordinal",
+        "num_classes": 2,
+        "classes": [0, 1],
+        "distribution": {{"0": 0.62, "1": 0.38}},
+        "is_imbalanced": true|false,
+        "range": [min, max] // for regression
+    }},
+    "evaluation_metric": "accuracy|rmse|rmsle|f1|auc|mae|logloss|custom",
+    "submission_format": {{
+        "id_column": "PassengerId",
+        "prediction_column": "Survived",
+        "output_type": "integer|float|binary|probabilities|class_labels",
+        "requires_transformation": "round|threshold|argmax|none"
+    }},
     "data_quality": {{
-        "missing_values_strategy": "...",
-        "outliers": "...",
-        "class_balance": "balanced|imbalanced"
+        "missing_values": {{"column": percentage}},
+        "outliers": ["column1", "column2"],
+        "class_balance": "balanced|imbalanced",
+        "issues": ["high_cardinality_in_X", "data_leakage_risk"]
+    }},
+    "feature_types": {{
+        "id_columns": ["PassengerId"],
+        "numerical": ["Age", "Fare"],
+        "categorical": ["Sex", "Embarked"],
+        "text": ["Name"],
+        "datetime": ["Date"],
+        "target": ["Survived"]
     }},
     "preprocessing": {{
-        "categorical_encoding": "label|onehot|target",
+        "categorical_encoding": "label|onehot|target|embeddings",
         "numerical_scaling": "standard|minmax|robust|none",
-        "handle_missing": "mean|median|mode|drop",
-        "feature_transformations": ["log(feature_x)", "binning(age)"]
+        "handle_missing": "mean|median|mode|drop|knn",
+        "text_processing": "tfidf|word2vec|bert|none",
+        "feature_transformations": ["log(Fare)", "bin(Age,bins=5)"]
     }},
     "feature_engineering": [
-        "interaction: feature_a * feature_b",
-        "polynomial: feature_x^2",
-        "aggregation: groupby mean"
+        "family_size = SibSp + Parch + 1",
+        "is_alone = (family_size == 1)",
+        "title = extract from Name",
+        "fare_per_person = Fare / family_size"
     ],
-    "warnings": ["potential_data_leakage_in_X", "high_cardinality_in_Y"],
-    "recommended_models": ["lightgbm", "xgboost", "neural_network"],
-    "confidence": "high|medium|low"
-}}"""
+    "recommended_models": ["lightgbm", "xgboost", "catboost", "neural_network", "ensemble"],
+    "model_justification": "LightGBM for speed, XGBoost for accuracy, ensemble for top 1%",
+    "warnings": ["Potential data leakage in column X", "High missing rate in Age"],
+    "confidence": "high|medium|low",
+    "competition_strategy": "Focus on feature engineering. Target is imbalanced - use SMOTE or class weights."
+}}
 
-        try:
-            analysis = await self.reason_json(prompt, context)
-            logger.info(f"AI Data Analysis complete for {competition_name}")
-            return analysis
+Be THOROUGH. Analyze sample_submission.csv format carefully!"""
 
-        except Exception as e:
-            logger.error(f"Error in data analysis: {e}")
-            return self._fallback_analysis(dataset_info)
+        analysis = await self.reason_json(prompt, context)
+
+        if not analysis or "target_column" not in analysis:
+            raise RuntimeError(
+                f"❌ AI Data Analysis failed for {competition_name}. "
+                "Pure agentic AI system - no fallback! "
+                "Ensure GEMINI_API_KEY is set and valid."
+            )
+
+        logger.info(f"🤖 AI Data Analysis complete for {competition_name}")
+        logger.info(f"   Task: {analysis.get('task_type')}")
+        logger.info(f"   Target: {analysis.get('target_column')}")
+        logger.info(f"   Metric: {analysis.get('evaluation_metric')}")
+
+        return analysis
 
     def _format_dataset_info(self, dataset_info: Dict[str, Any]) -> str:
         """Format dataset info for prompt."""
@@ -143,28 +174,3 @@ Respond with JSON:
                 lines.append(f"- Data Types: {dtypes_summary}")
 
         return "\n".join(lines)
-
-    def _fallback_analysis(self, dataset_info: Dict[str, Any]) -> Dict[str, Any]:
-        """Fallback analysis if AI fails."""
-        logger.warning("Using fallback data analysis")
-
-        return {
-            "target_column": "unknown",
-            "target_confidence": "low",
-            "task_type": "classification",
-            "data_quality": {
-                "missing_values_strategy": "Use mean for numerical, mode for categorical",
-                "outliers": "No specific strategy",
-                "class_balance": "unknown"
-            },
-            "preprocessing": {
-                "categorical_encoding": "label",
-                "numerical_scaling": "standard",
-                "handle_missing": "mean",
-                "feature_transformations": []
-            },
-            "feature_engineering": [],
-            "warnings": ["Fallback analysis due to AI error"],
-            "recommended_models": ["lightgbm", "xgboost"],
-            "confidence": "low"
-        }

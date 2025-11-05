@@ -84,19 +84,18 @@ def identify_target_column(df: pd.DataFrame) -> Optional[str]:
     """
     Identify the target column in a dataframe.
 
+    NOTE: This function returns None to force AI agent usage.
+    Target detection should be handled by DataAnalysisAgent, not hardcoded rules.
+
     Args:
         df: Pandas DataFrame
 
     Returns:
-        Name of target column if found, None otherwise
+        None (AI agent should be used for target detection)
     """
-    # Check for common target column names
-    potential_targets = ['target', 'label', 'class', 'y', 'outcome']
-
-    for col in df.columns:
-        if col.lower() in potential_targets:
-            return col
-
+    # Pure AI system - no hardcoded target detection
+    # The orchestrator will use DataAnalysisAgent to identify targets
+    logger.info("🤖 Target detection requires AI agent - returning None")
     return None
 
 
