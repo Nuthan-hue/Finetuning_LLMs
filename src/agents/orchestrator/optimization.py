@@ -8,10 +8,19 @@ from typing import Any, Dict
 from datetime import datetime
 
 from ..base import AgentState
-from .strategies import select_optimization_strategy
+from .strategies import select_optimization_strategy, improve_training_config
 from .phases import run_initial_training, run_submission
 
 logger = logging.getLogger(__name__)
+
+# Try to import AI agents
+try:
+    from ..llm_agents import StrategyAgent
+    AI_AVAILABLE = True
+    logger.info("✓ AI Strategy Agent available")
+except ImportError as e:
+    AI_AVAILABLE = False
+    logger.warning(f"⚠️  AI agents not available: {e}")
 
 
 async def run_optimization_loop(
@@ -76,16 +85,58 @@ async def run_optimization_loop(
 
         # Get recommendation and select optimization strategy
         recommendation = leaderboard_results.get("recommendation")
-        logger.info(f"Recommendation: {recommendation}")
+        logger.info(f"Leaderboard recommendation: {recommendation}")
 
-        # Use strategies module to determine next action
-        strategy = select_optimization_strategy(
-            recommendation,
-            training_results.get("model_type", "lightgbm"),
-            orchestrator.tried_models,
-            current_percentile,
-            orchestrator.target_percentile
-        )
+        # ═══════════════════════════════════════════════════════════
+        # 🤖 USE AI AGENT for strategy selection (not hardcoded!)
+        # ═══════════════════════════════════════════════════════════
+        if AI_AVAILABLE:
+            logger.info("🤖 Asking AI Strategy Agent for next move...")
+
+            try:
+                # Initialize AI agent
+                strategy_agent = StrategyAgent()
+
+                # Get AI decision
+                competition_type = data_results.get("analysis_report", {}).get("competition_type", "tabular")
+
+                strategy = await strategy_agent.select_optimization_strategy(
+                    recommendation=recommendation,
+                    current_model=training_results.get("model_type", "lightgbm"),
+                    tried_models=orchestrator.tried_models,
+                    current_percentile=current_percentile,
+                    target_percentile=orchestrator.target_percentile,
+                    iteration=orchestrator.iteration,
+                    competition_type=competition_type,
+                    performance_history=orchestrator.workflow_history
+                )
+
+                # Log AI decision
+                logger.info(f"🤖 AI Strategy: {strategy['action']}")
+                logger.info(f"💭 AI Reasoning: {strategy.get('reasoning', 'N/A')[:200]}...")
+                logger.info(f"📊 Expected Improvement: {strategy.get('expected_improvement', 'N/A')}")
+                logger.info(f"🎯 Confidence: {strategy.get('confidence', 'N/A')}")
+
+            except Exception as e:
+                logger.warning(f"⚠️  AI agent failed: {e}, using fallback...")
+                # Fallback to hardcoded
+                strategy = select_optimization_strategy(
+                    recommendation,
+                    training_results.get("model_type", "lightgbm"),
+                    orchestrator.tried_models,
+                    current_percentile,
+                    orchestrator.target_percentile
+                )
+        else:
+            # No AI available, use hardcoded logic
+            logger.info("Using hardcoded strategy selection...")
+            strategy = select_optimization_strategy(
+                recommendation,
+                training_results.get("model_type", "lightgbm"),
+                orchestrator.tried_models,
+                current_percentile,
+                orchestrator.target_percentile
+            )
 
         logger.info(f"Selected strategy: {strategy['action']}")
 
@@ -111,15 +162,30 @@ async def run_optimization_loop(
 
         elif strategy["action"] in ["retrain", "tune_aggressive"]:
             # Improve hyperparameters and retrain
-            logger.info("Retraining with improved hyperparameters...")
+            is_aggressive = strategy.get("aggressive", False)
+            logger.info(f"Retraining with {'aggressive' if is_aggressive else 'moderate'} tuning...")
 
-            from .strategies import improve_training_config
-            improved_config = improve_training_config(
-                context.get("training_config", {}),
-                current_percentile,
-                orchestrator.target_percentile,
-                aggressive=strategy["aggressive"]
-            )
+            # ═══════════════════════════════════════════════════════════
+            # 🤖 USE AI-SUGGESTED hyperparameters (not hardcoded formulas!)
+            # ═══════════════════════════════════════════════════════════
+            base_config = context.get("training_config", {}).copy()
+
+            # Check if AI provided specific hyperparameter suggestions
+            if "config_updates" in strategy and strategy["config_updates"]:
+                logger.info("📋 Using AI-suggested hyperparameters:")
+                for key, value in strategy["config_updates"].items():
+                    logger.info(f"  {key}: {value}")
+                base_config.update(strategy["config_updates"])
+                improved_config = base_config
+            else:
+                # Fallback to hardcoded improvement
+                logger.info("⚠️  No AI suggestions, using fallback hyperparameter tuning...")
+                improved_config = improve_training_config(
+                    base_config,
+                    current_percentile,
+                    orchestrator.target_percentile,
+                    aggressive=is_aggressive
+                )
 
             training_results = await run_initial_training(
                 orchestrator,

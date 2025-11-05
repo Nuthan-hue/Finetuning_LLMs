@@ -29,7 +29,7 @@ Provide specific, actionable recommendations that improve model performance."""
 
         super().__init__(
             name="DataAnalysisAgent",
-            model_name="gemini-1.5-flash",
+            model_name="gemini-2.0-flash-exp",
             temperature=0.3,  # Lower temperature for more focused analysis
             system_prompt=system_prompt
         )

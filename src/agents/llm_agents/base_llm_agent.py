@@ -27,7 +27,7 @@ class BaseLLMAgent:
     def __init__(
         self,
         name: str,
-        model_name: str = "gemini-1.5-flash",
+        model_name: str = "gemini-2.0-flash-exp",
         temperature: float = 0.7,
         system_prompt: Optional[str] = None
     ):
