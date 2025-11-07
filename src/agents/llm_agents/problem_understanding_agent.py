@@ -147,10 +147,12 @@ class ProblemUnderstandingAgent:
                 print(repr(overview_text))
             else:
                 # Scrape overview page for real competition description
-                overview_text = scrape_kaggle_with_selenium(competition_name)
+                # Pass data_path directory so selenium saves to the correct location
+                output_dir = str(Path(data_path)) if data_path else None
+                overview_text = scrape_kaggle_with_selenium(competition_name, output_dir=output_dir)
 
-                # Cache it
-                if cache_file and overview_text:
+                # Cache it (if not already saved by selenium)
+                if cache_file and overview_text and not cache_file.exists():
                     cache_file.write_text(overview_text)
                     logger.info(f"💾 Cached overview to {cache_file.name}")
 

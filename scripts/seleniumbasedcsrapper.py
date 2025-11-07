@@ -4,7 +4,17 @@ from selenium.webdriver.common.by import By
 import time
 import os
 
-def scrape_kaggle_with_selenium(competition_name):
+def scrape_kaggle_with_selenium(competition_name, output_dir=None):
+    """
+    Scrape competition overview from Kaggle using Selenium.
+
+    Args:
+        competition_name: Name of the Kaggle competition
+        output_dir: Directory to save the overview file (optional, for caching)
+
+    Returns:
+        Combined description and evaluation text
+    """
     url = f"https://www.kaggle.com/competitions/{competition_name}/overview"
 
     # Setup headless browser
@@ -34,15 +44,15 @@ def scrape_kaggle_with_selenium(competition_name):
 
         combined_text = f"--- Description ---\n{description}\n\n--- Evaluation ---\n{evaluation}"
 
-        # Save to file
-        output_dir = "/Volumes/SD_Card/Finetuning_LLMs/data/raw/titanic"
-        os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, f"{competition_name}_overview.txt")
+        # Save to file if output_dir provided
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+            output_file = os.path.join(output_dir, f"{competition_name}_overview.txt")
 
-        with open(output_file, "w", encoding="utf-8") as f:
-            f.write(combined_text)
+            with open(output_file, "w", encoding="utf-8") as f:
+                f.write(combined_text)
 
-        print(f"✅ Scraped and saved to: {output_file}")
+            print(f"✅ Scraped and saved to: {output_file}")
 
         return combined_text
 

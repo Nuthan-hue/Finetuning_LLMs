@@ -26,9 +26,15 @@ async def quick_test():
     logger.info("🧪 QUICK TEST: Refactored Orchestrator on Titanic")
     logger.info("=" * 60)
 
-    # Create orchestrator with just 1 iteration for testing
+    # Get project root (go up from tests/ to project root)
+    project_root = Path(__file__).parent.parent
+
+    # Create orchestrator with absolute paths
     orchestrator = Orchestrator(
         competition_name="titanic",
+        data_dir=str(project_root / "data"),
+        models_dir=str(project_root / "models"),
+        submissions_dir=str(project_root / "submissions"),
         target_percentile=0.20,
         max_iterations=1  # Just 1 iteration for quick test
     )
