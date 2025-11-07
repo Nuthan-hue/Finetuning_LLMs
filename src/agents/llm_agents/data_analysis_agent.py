@@ -100,6 +100,7 @@ Provide detailed Kaggle-specific analysis in JSON format:
         "class_balance": "balanced|imbalanced",
         "issues": ["high_cardinality_in_X", "data_leakage_risk"]
     }},
+    "preprocessing_required": true|false,
     "feature_types": {{
         "id_columns": ["PassengerId"],
         "numerical": ["Age", "Fare"],

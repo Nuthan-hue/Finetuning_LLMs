@@ -7,11 +7,13 @@ from .strategy_agent import StrategyAgent
 from .data_analysis_agent import DataAnalysisAgent
 from .problem_understanding_agent import ProblemUnderstandingAgent
 from .planning_agent import PlanningAgent
+from .preprocessing_agent import PreprocessingAgent
 
 __all__ = [
     "BaseLLMAgent",
     "StrategyAgent",
     "DataAnalysisAgent",
     "ProblemUnderstandingAgent",
-    "PlanningAgent"
+    "PlanningAgent",
+    "PreprocessingAgent"
 ]

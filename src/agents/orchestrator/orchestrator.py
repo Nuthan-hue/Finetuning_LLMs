@@ -8,6 +8,7 @@ from typing import Any, Dict
 
 from ..base import BaseAgent, AgentState
 from ..data_collector import DataCollector
+from ..llm_agents import ProblemUnderstandingAgent
 from ..model_trainer import ModelTrainer
 from ..submission import Submitter
 from ..leaderboard import LeaderboardMonitor
@@ -48,6 +49,7 @@ class Orchestrator(BaseAgent):
 
         # Initialize workflow components
         self.data_collector = DataCollector(data_dir=data_dir)
+        self.problem_understanding_agent = ProblemUnderstandingAgent()
         self.model_trainer = ModelTrainer(models_dir=models_dir)
         self.submission_agent = Submitter(submissions_dir=submissions_dir)
         self.leaderboard_monitor = LeaderboardMonitor(
@@ -114,19 +116,22 @@ class Orchestrator(BaseAgent):
                 # PHASE 1: DATA COLLECTION (only first iteration)
                 if self.iteration == 1:
                     accumulated_context = await run_data_collection(self, accumulated_context)
-                    print(accumulated_context)
+                    print("Data Collection", accumulated_context)
 
                 # PHASE 2: PROBLEM UNDERSTANDING (only first iteration)
                 if self.iteration == 1:
                     accumulated_context = await run_problem_understanding(self, accumulated_context)
+                    print("Problem understanding", accumulated_context)
 
                 # PHASE 3: DATA ANALYSIS (only first iteration)
                 if self.iteration == 1:
                     accumulated_context = await run_data_analysis(self, accumulated_context)
+                    print("Data Analysis", accumulated_context)
 
                 # PHASE 4: PREPROCESSING (conditional, only first iteration)
                 if self.iteration == 1:
                     accumulated_context = await run_preprocessing(self, accumulated_context)
+                    print("Preprocessing", accumulated_context)
 
                 # PHASE 5: PLANNING (AI creates/updates execution plan)
                 accumulated_context = await run_planning(self, accumulated_context)

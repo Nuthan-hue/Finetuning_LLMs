@@ -2,12 +2,14 @@
 Orchestrator Phase Execution
 Handles individual phases of the competition workflow following the 10-phase architecture.
 """
+import importlib
 import logging
 from typing import Any, Dict
 from pathlib import Path
+import sys
 
 from ..base import AgentState
-from ..llm_agents import ProblemUnderstandingAgent, DataAnalysisAgent, PlanningAgent
+from ..llm_agents import ProblemUnderstandingAgent, DataAnalysisAgent, PlanningAgent, PreprocessingAgent
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +78,8 @@ async def run_problem_understanding(
     logger.info("=" * 70)
 
     # Initialize Problem Understanding Agent
-    problem_agent = ProblemUnderstandingAgent()
+    #problem_agent = ProblemUnderstandingAgent()
+    problem_agent = orchestrator.problem_understanding_agent
 
     # Understand the competition (with access to downloaded data from Phase 1)
     understanding = await problem_agent.understand_competition(
@@ -96,6 +99,13 @@ async def run_problem_understanding(
     logger.info(f"   Metric: {understanding.get('evaluation_metric', 'N/A')}")
 
     return context
+
+
+
+
+
+
+
 
 
 async def run_data_analysis(
@@ -170,11 +180,62 @@ async def run_preprocessing(
     logger.info("PHASE 4: PREPROCESSING")
     logger.info("=" * 70)
 
-    # TODO: Implement PreprocessingAgent when ready
-    # For now, use raw data
-    logger.info("⚠️  PreprocessingAgent not yet implemented")
-    logger.info("   Using raw data for now")
-    context["clean_data_path"] = context["data_path"]
+    # Step 1: Generate preprocessing code with AI
+    logger.info("🤖 Generating preprocessing code with AI...")
+    preprocessing_agent = PreprocessingAgent()
+
+    preprocessing_code = await preprocessing_agent.generate_preprocessing_code(
+        data_analysis=context["data_analysis"],
+        data_path=context["data_path"]
+    )
+
+    logger.info(f"✅ Generated {len(preprocessing_code)} chars of preprocessing code")
+
+    # Save the generated code to file
+    preprocessing_file = Path(context["data_path"]) / "preprocessing.py"
+    preprocessing_file.write_text(preprocessing_code)
+    logger.info(f"💾 Saved preprocessing code to: {preprocessing_file}")
+
+    # Step 2: Execute the generated code
+    logger.info("⚙️  Executing preprocessing code...")
+
+    try:
+
+        #Create a namespace for execution
+        namespace = {}
+
+        # Execute the code
+        exec(preprocessing_code, namespace)
+
+
+        # Call the preprocess_data function
+        if "preprocess_data" not in namespace:
+            raise RuntimeError("Generated code missing 'preprocess_data' function")
+
+        preprocess_func = namespace["preprocess_data"]
+        result = preprocess_func(context["data_path"])
+
+
+        logger.info(f"✅ Preprocessing completed")
+        logger.info(f"   Train shape: {result.get('train_shape')}")
+        logger.info(f"   Test shape: {result.get('test_shape')}")
+        logger.info(f"   Columns: {len(result.get('columns', []))}")
+        logger.info(f"   Missing values remaining: {result.get('missing_values_remaining', 0)}")
+
+        # Update context with clean data path
+        clean_data_path = Path(context["data_path"]) / "clean_train.csv"
+        if clean_data_path.exists():
+            context["clean_data_path"] = str(Path(context["data_path"]))
+            context["preprocessing_result"] = result
+        else:
+            raise RuntimeError("Preprocessing did not create clean_train.csv")
+
+    except Exception as e:
+        logger.error(f"❌ Preprocessing execution failed: {e}")
+        logger.warning("⚠️  Falling back to raw data")
+        context["clean_data_path"] = context["data_path"]
+        import traceback
+        traceback.print_exc()
 
     return context
 

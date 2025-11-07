@@ -1,2 +1,85 @@
 //*[@id="site-content"]/div[2]/div//div[contains(@id, 'description')]
 //*[@id="site-content"]/div[2]/div//div[contains(@id, 'description')]
+
+================================================================================
+Date: Nov 7, 2024
+================================================================================
+
+DESIGN DISCUSSION: Phase 2 vs Phase 3 Separation
+================================================
+
+PROBLEM: Overlap between Problem Understanding and Data Analysis
+
+CURRENT SITUATION:
+- Phase 2 (Problem Understanding) tries to guess features and data structure
+- Phase 3 (Data Analysis) looks at actual data
+- Result: Confusion and hallucination in Phase 2
+
+PROPOSED CLEAR SEPARATION:
+
+Phase 2: Problem Understanding (TEXT ONLY - NO DATA)
+-----------------------------------------------------
+Input: Competition description text from web scraping
+Focus: WHAT are we solving? WHAT is success? HOW do we submit?
+
+Output Should Include:
+- task_type: "binary_classification"
+- evaluation_metric: "accuracy" (from competition rules)
+- problem_description: "Predict survival on Titanic"
+- submission_format: {id_column, prediction_column}
+- success_criteria: What makes a good solution
+- key_challenges: High-level challenges
+
+Should NOT Include:
+❌ Expected features (guessing from thin air)
+❌ Data expectations (will be wrong)
+❌ Preprocessing recommendations (no data yet)
+
+Phase 3: Data Analysis (ACTUAL DATA)
+-------------------------------------
+Input: Actual train.csv, test.csv, sample_submission.csv
+Focus: WHAT data do we have? WHAT needs cleaning? WHAT features exist?
+
+Output Should Include:
+- target_column: "Survived" (found in data)
+- target_distribution: {"0": 549, "1": 342} (real counts)
+- features: {numerical: [...], categorical: [...]} (actually present)
+- missing_values: {"Age": 0.20} (real percentages)
+- data_quality_issues: List of actual problems
+- preprocessing_recommendations: Based on actual data
+- feature_engineering_suggestions: Based on actual columns
+- recommended_models: Based on data characteristics
+
+KEY DIFFERENCE:
+- Phase 2: Problem-level understanding (from competition text)
+- Phase 3: Data-level analysis (from actual files)
+
+WHY THIS MATTERS:
+1. Phase 2 doesn't hallucinate about data structure
+2. Phase 3 provides concrete, actionable insights
+3. Clearer separation of concerns
+4. Easier to debug when something goes wrong
+5. AI makes decisions based on reality, not guesses
+
+EXAMPLE OUTPUT:
+
+Phase 2 should output:
+{
+    "task_type": "binary_classification",
+    "evaluation_metric": "accuracy",
+    "problem_description": "Predict survival",
+    "submission_format": {...}
+}
+
+Phase 3 should output:
+{
+    "target_column": "Survived",
+    "features": {"numerical": ["Age", "Fare"], ...},
+    "missing_values": {"Age": 0.20},
+    "preprocessing_needed": true,
+    "feature_engineering_suggestions": [...]
+}
+
+ACTION ITEM: Refactor both prompts later (current flow works for now)
+
+================================================================================
