@@ -83,3 +83,7 @@ Phase 3 should output:
 ACTION ITEM: Refactor both prompts later (current flow works for now)
 
 ================================================================================
+
+
+
+I want all the original AI code(usage of AI code to be in seperate file) so that I can use diffenet kinds of APIs.

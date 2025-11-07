@@ -4,14 +4,14 @@ AI-powered agent that creates comprehensive execution plans based on problem und
 """
 import logging
 import json
+from pathlib import Path
 from typing import Dict, Any
-import google.generativeai as genai
-import os
+from .base_llm_agent import BaseLLMAgent
 
 logger = logging.getLogger(__name__)
 
 
-class PlanningAgent:
+class PlanningAgent(BaseLLMAgent):
     """
     AI agent that creates detailed execution plans for Kaggle competitions.
 
@@ -19,29 +19,16 @@ class PlanningAgent:
     a comprehensive, step-by-step plan that workers can execute.
     """
 
-    def __init__(self, model_name: str = "gemini-2.0-flash-exp"):
-        """
-        Initialize the Planning Agent.
+    def __init__(self):
+        prompt_file = Path(__file__).parent.parent / "prompts" / "planning_agent.txt"
+        system_prompt = prompt_file.read_text()
 
-        Args:
-            model_name: Gemini model to use for planning
-        """
-        self.model_name = model_name
-        self._setup_llm()
-
-    def _setup_llm(self):
-        """Set up Gemini LLM."""
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "❌ GEMINI_API_KEY not found. "
-                "This is a pure agentic AI system - AI planning is required. "
-                "Set GEMINI_API_KEY in your environment."
-            )
-
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(self.model_name)
-        logger.info(f"✅ Initialized Gemini model for planning: {self.model_name}")
+        super().__init__(
+            name="PlanningAgent",
+            model_name="gemini-2.0-flash-exp",
+            temperature=0.3,
+            system_prompt=system_prompt
+        )
 
     async def create_plan(
         self,

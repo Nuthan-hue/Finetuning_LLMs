@@ -4,18 +4,16 @@ AI-powered agent that reads and understands Kaggle competition problems.
 """
 import logging
 import json
-import os
 from typing import Dict, Any, Optional
 from pathlib import Path
 
-import google.generativeai as genai
 from scripts.seleniumbasedcsrapper import scrape_kaggle_with_selenium
-from src.agents import BaseAgent
+from .base_llm_agent import BaseLLMAgent
 
 logger = logging.getLogger(__name__)
 
 
-class ProblemUnderstandingAgent (BaseAgent):
+class ProblemUnderstandingAgent(BaseLLMAgent):
     """
     AI agent that understands competition problems by reading descriptions.
 
@@ -24,28 +22,17 @@ class ProblemUnderstandingAgent (BaseAgent):
     2. Use AI to understand the problem and create strategy
     """
 
-    def __init__(self, model_name: str = "gemini-2.0-flash-exp"):
-        """
-        Initialize the Problem Understanding Agent.
+    def __init__(self):
+        prompt_file = Path(__file__).parent.parent / "prompts" / "problem_understanding_agent.txt"
+        system_prompt = prompt_file.read_text()
 
-        Args:
-            model_name: AI model to use for understanding
-        """
-        self.model_name = model_name
-        self._setup_ai()
+        super().__init__(
+            name="ProblemUnderstandingAgent",
+            model_name="gemini-2.0-flash-exp",
+            temperature=0.3,
+            system_prompt=system_prompt
+        )
 
-    def _setup_ai(self):
-        """Set up AI model."""
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "❌ GEMINI_API_KEY not found. "
-                "This is a pure agentic AI system - AI analysis is required."
-            )
-
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(self.model_name)
-        logger.info(f"✅ Initialized AI model: {self.model_name}")
 
     async def understand_competition(
         self,

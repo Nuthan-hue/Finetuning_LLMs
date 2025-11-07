@@ -4,6 +4,7 @@ AI-powered agent that analyzes datasets and suggests preprocessing strategies.
 """
 import logging
 from typing import Dict, Any
+from pathlib import Path
 from .base_llm_agent import BaseLLMAgent
 
 logger = logging.getLogger(__name__)
@@ -13,22 +14,9 @@ class DataAnalysisAgent(BaseLLMAgent):
     """AI agent that intelligently analyzes data and suggests preprocessing."""
 
     def __init__(self):
-        system_prompt = """You are an expert Kaggle Grandmaster with deep experience across ALL competition types.
-
-Your role is to analyze competition datasets and provide COMPLETE task understanding.
-
-You excel at:
-- Identifying exact task type (binary_classification, multiclass, regression, clustering, time_series, etc.)
-- Detecting data modality (tabular, nlp, computer_vision, time_series, mixed)
-- Finding target variables (or identifying unsupervised tasks with NO target)
-- Understanding submission formats from sample_submission.csv
-- Inferring evaluation metrics (accuracy, RMSE, F1, AUC, RMSLE, etc.)
-- Analyzing target characteristics (binary, classes, distribution, imbalance)
-- Recommending optimal models for the specific competition type
-- Suggesting preprocessing and feature engineering strategies
-- Detecting data leakage and competition-specific gotchas
-
-Provide DETAILED, Kaggle-specific analysis that enables automated competition solving."""
+        # Load system prompt from file
+        prompt_file = Path(__file__).parent.parent / "prompts" / "data_analysis_agent.txt"
+        system_prompt = prompt_file.read_text()
 
         super().__init__(
             name="DataAnalysisAgent",

@@ -14,21 +14,9 @@ class PreprocessingAgent(BaseLLMAgent):
     """AI agent that generates preprocessing code dynamically for any competition."""
 
     def __init__(self):
-        system_prompt = """You are an expert data preprocessing engineer for Kaggle competitions.
-
-Your role is to generate EXECUTABLE Python preprocessing code based on data analysis recommendations.
-
-You excel at:
-- Writing clean, efficient pandas code for data preprocessing
-- Handling missing values intelligently (median/mode/drop based on context)
-- Encoding categorical variables (label encoding, one-hot, target encoding)
-- Scaling numerical features (StandardScaler, MinMaxScaler, RobustScaler)
-- Processing text data (lowercase, tokenization, cleaning)
-- Creating modality-aware preprocessing (tabular vs NLP vs vision)
-- Writing code that works on BOTH train and test sets consistently
-- Avoiding data leakage (fit on train, transform on test)
-
-Generate production-ready code that can be executed directly."""
+        # Load system prompt from file
+        prompt_file = Path(__file__).parent.parent / "prompts" / "preprocessing_agent.txt"
+        system_prompt = prompt_file.read_text()
 
         super().__init__(
             name="PreprocessingAgent",

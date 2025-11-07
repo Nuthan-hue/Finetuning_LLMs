@@ -1,0 +1,153 @@
+You are an expert Kaggle competition strategist. Create a comprehensive, executable plan for winning this competition.
+
+# Competition Context
+
+**Competition:** {competition_name}
+
+## Problem Understanding
+{json.dumps(problem_understanding, indent=2)}
+
+## Data Analysis
+{json.dumps(data_analysis, indent=2)}
+
+# Your Task
+
+Create a DETAILED, EXECUTABLE plan that workers can follow step-by-step. This plan must be:
+1. **Specific** - Exact steps, not vague suggestions
+2. **Prioritized** - Most important/effective actions first
+3. **Complete** - Cover all aspects: preprocessing, features, models, validation
+4. **Realistic** - Achievable with available tools and time
+
+# Plan Components
+
+## 1. Models to Try
+- List 3-5 models in PRIORITY order (best first)
+- For each model:
+  - Model type (lightgbm, xgboost, pytorch_mlp, transformer, etc.)
+  - Why it's suitable for THIS specific problem
+  - Specific hyperparameters to start with
+  - Expected performance level
+
+## 2. Preprocessing Plan
+Based on the data analysis, specify EXACT preprocessing steps:
+- Which columns to remove (IDs, etc.)
+- How to handle missing values (column by column if needed)
+- Outlier detection and treatment
+- Encoding strategy (one-hot, label, target encoding)
+- Scaling strategy (standard, minmax, robust, none)
+
+## 3. Feature Engineering Plan
+List SPECIFIC features to create:
+- Feature name
+- Exact formula/calculation
+- Why it will help for THIS problem
+- Priority (1=must have, 2=nice to have, 3=experimental)
+
+## 4. Validation Strategy
+- Cross-validation method (k-fold, stratified, time-series, etc.)
+- Number of splits
+- Whether to stratify (and on what column)
+- Why this strategy fits the problem
+
+## 5. Hyperparameter Tuning
+- Method (grid search, random search, Bayesian, Optuna)
+- Key parameters to tune for each model
+- Time budget
+- Number of trials
+
+## 6. Ensemble Strategy
+- Should we ensemble?
+- Which models to combine?
+- How to combine them (voting, stacking, weighted average)
+- Weights or stacking meta-learner
+
+## 7. Success Criteria
+- Target metric value (based on competition metric)
+- When to stop training
+- Maximum time budget
+
+## 8. Execution Order
+Clear step-by-step execution sequence
+
+# Output Format
+
+Respond with ONLY a valid JSON object (no markdown, no code blocks):
+
+{{
+    "models_to_try": [
+        {{
+            "model": "lightgbm|xgboost|pytorch_mlp|transformer|...",
+            "priority": 1,
+            "reason": "Specific reason for THIS competition",
+            "hyperparameters": {{"param1": "value1", ...}},
+            "expected_performance": "e.g., 0.80-0.85 accuracy"
+        }}
+    ],
+    "preprocessing_plan": [
+        {{
+            "step": "remove_ids|handle_missing|detect_outliers|encode_categorical|scale_numerical|...",
+            "details": {{"specific": "implementation details"}},
+            "reason": "Why this step is important",
+            "order": 1
+        }}
+    ],
+    "feature_engineering_plan": [
+        {{
+            "feature_name": "descriptive_name",
+            "formula": "exact calculation",
+            "reason": "why this helps",
+            "priority": 1
+        }}
+    ],
+    "validation_strategy": {{
+        "method": "kfold|stratified_kfold|timeseries_split|train_test_split|...",
+        "n_splits": 5,
+        "stratify_column": "target_column_name or null",
+        "shuffle": true,
+        "random_state": 42,
+        "reason": "why this validation strategy"
+    }},
+    "hyperparameter_tuning": {{
+        "method": "optuna|grid_search|random_search|bayesian|...",
+        "n_trials": 100,
+        "time_budget_minutes": 60,
+        "key_parameters": {{
+            "lightgbm": ["learning_rate", "num_leaves", "max_depth"],
+            "xgboost": ["learning_rate", "max_depth", "n_estimators"]
+        }},
+        "optimization_metric": "metric_to_optimize"
+    }},
+    "ensemble_strategy": {{
+        "use_ensemble": true,
+        "method": "voting|stacking|blending|weighted_average|...",
+        "models_to_combine": ["model1", "model2", ...],
+        "weights": {{"model1": 0.6, "model2": 0.4}} or null,
+        "meta_learner": "logistic_regression|..." or null,
+        "reason": "why ensemble will help"
+    }},
+    "success_criteria": {{
+        "target_metric_value": 0.85,
+        "target_percentile": 0.20,
+        "stop_if_exceeded": true,
+        "max_training_time_hours": 2,
+        "early_stopping_patience": 50
+    }},
+    "execution_order": [
+        "Step 1: Download and explore data",
+        "Step 2: Execute preprocessing plan",
+        "Step 3: Execute feature engineering plan",
+        "Step 4: Train priority 1 model with cross-validation",
+        "Step 5: Tune hyperparameters",
+        "Step 6: Train remaining models",
+        "Step 7: Create ensemble if beneficial",
+        "Step 8: Generate and submit predictions"
+    ],
+    "risk_mitigation": {{
+        "overfitting": "Use cross-validation, early stopping, regularization",
+        "data_leakage": "Ensure train/test split integrity, no target leakage in features",
+        "time_constraints": "Start with simplest effective model, then iterate"
+    }},
+    "confidence": "high|medium|low"
+}}
+
+Create the plan:

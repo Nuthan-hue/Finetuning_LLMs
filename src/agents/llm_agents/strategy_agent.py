@@ -4,6 +4,7 @@ AI-powered agent that decides optimization strategies based on leaderboard perfo
 Replaces hardcoded conditional logic with intelligent reasoning.
 """
 import logging
+from pathlib import Path
 from typing import Dict, Any
 from .base_llm_agent import BaseLLMAgent
 
@@ -14,25 +15,8 @@ class StrategyAgent(BaseLLMAgent):
     """AI agent that intelligently selects optimization strategies."""
 
     def __init__(self):
-        system_prompt = """You are an expert Kaggle competition strategist and machine learning engineer.
-
-Your role is to analyze competition performance and recommend the next optimization strategy.
-
-You have deep knowledge of:
-- Machine learning models (LightGBM, XGBoost, Neural Networks, Transformers)
-- Hyperparameter tuning strategies
-- Feature engineering approaches
-- Model ensemble techniques
-- Competition-specific optimization tactics
-
-When analyzing performance, consider:
-1. Current percentile vs target percentile
-2. Performance trends over iterations
-3. Which models have been tried
-4. The gap magnitude (minor vs major improvements needed)
-5. Competition characteristics (tabular, NLP, CV)
-
-Provide actionable, specific recommendations."""
+        prompt_file = Path(__file__).parent.parent / "prompts" / "strategy_agent.txt"
+        system_prompt = prompt_file.read_text()
 
         super().__init__(
             name="StrategyAgent",
