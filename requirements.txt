@@ -17,3 +17,4 @@ psutil>=5.8.0
 lxml>=4.6.0
 tensorflow
 google-generativeai>=0.3.0
+selenium

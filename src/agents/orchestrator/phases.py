@@ -1,6 +1,6 @@
 """
 Orchestrator Phase Execution
-Handles individual phases of the competition workflow.
+Handles individual phases of the competition workflow following the 10-phase architecture.
 """
 import logging
 from typing import Any, Dict
@@ -12,52 +12,27 @@ from ..llm_agents import ProblemUnderstandingAgent, DataAnalysisAgent, PlanningA
 logger = logging.getLogger(__name__)
 
 
-async def run_problem_understanding(
+async def run_data_collection(
     orchestrator,
     context: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
-    Execute problem understanding phase.
-
-    This is the FIRST phase - AI reads and understands the competition problem
-    BEFORE looking at any data.
+    PHASE 1: DATA COLLECTION (Worker - No LLM)
+    Downloads competition files and performs basic analysis.
 
     Args:
         orchestrator: Orchestrator instance
-        context: Execution context
+        context: Accumulated context dict
 
     Returns:
-        Dictionary containing problem understanding
+        Updated context with data collection results
     """
+    logger.info("\n" + "=" * 70)
+    logger.info("PHASE 1: DATA COLLECTION")
     logger.info("=" * 70)
-    logger.info("PHASE 1: PROBLEM UNDERSTANDING")
-    logger.info("=" * 70)
-
-    # Initialize Problem Understanding Agent
-    problem_agent = ProblemUnderstandingAgent()
-
-    # Understand the competition
-    understanding = await problem_agent.understand_competition(
-        orchestrator.competition_name
-    )
-
-    # Display summary
-    summary = problem_agent.get_problem_summary(understanding)
-    print(summary)
-    logger.info("Problem understanding completed")
-
-    return {
-        "problem_understanding": understanding,
-        "competition_name": orchestrator.competition_name
-    }
-
-
-async def run_data_collection(orchestrator, context: Dict[str, Any]) -> Dict[str, Any]:
-    """Execute data collection phase."""
-    logger.info("Initiating data collection...")
 
     collection_context = {
-        "competition_name": orchestrator.competition_name,
+        "competition_name": context["competition_name"],
         "external_sources": context.get("external_sources", []),
         "analyze": True
     }
@@ -68,27 +43,78 @@ async def run_data_collection(orchestrator, context: Dict[str, Any]) -> Dict[str
     if orchestrator.data_collector.state == AgentState.ERROR:
         raise RuntimeError(f"Data collection failed: {orchestrator.data_collector.error}")
 
-    return results
+    # Add to context
+    context.update({
+        "data_path": results["data_path"],
+        "files": results.get("files", []),
+        "basic_stats": results.get("analysis_report", {})
+    })
+
+    logger.info(f"✅ Data collected: {len(results.get('files', []))} files")
+    logger.info(f"   Data path: {results['data_path']}")
+
+    return context
+
+
+async def run_problem_understanding(
+    orchestrator,
+    context: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    PHASE 2: PROBLEM UNDERSTANDING (LLM Agent)
+    AI reads competition description AND verifies against downloaded data.
+
+    Args:
+        orchestrator: Orchestrator instance
+        context: Accumulated context dict (now includes data)
+
+    Returns:
+        Updated context with problem understanding
+    """
+    logger.info("\n" + "=" * 70)
+    logger.info("PHASE 2: PROBLEM UNDERSTANDING")
+    logger.info("=" * 70)
+
+    # Initialize Problem Understanding Agent
+    problem_agent = ProblemUnderstandingAgent()
+
+    # Understand the competition (with access to downloaded data from Phase 1)
+    understanding = await problem_agent.understand_competition(
+        competition_name=context["competition_name"],
+        data_path=context.get("data_path")  # From Phase 1
+    )
+
+    # Display summary
+    summary = problem_agent.get_problem_summary(understanding)
+    print(summary)
+
+    # Add to context
+    context["problem_understanding"] = understanding
+
+    logger.info("✅ Problem understanding completed")
+    logger.info(f"   Task: {understanding.get('competition_type', 'N/A')}")
+    logger.info(f"   Metric: {understanding.get('evaluation_metric', 'N/A')}")
+
+    return context
 
 
 async def run_data_analysis(
     orchestrator,
-    data_results: Dict[str, Any],
-    problem_understanding: Dict[str, Any]
+    context: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
-    Execute data analysis phase with problem context.
+    PHASE 3: DATA ANALYSIS (LLM Agent)
+    Deep data analysis with modality detection and preprocessing recommendations.
 
     Args:
         orchestrator: Orchestrator instance
-        data_results: Results from data collection
-        problem_understanding: Results from problem understanding
+        context: Accumulated context dict (includes problem_understanding, data)
 
     Returns:
-        Dictionary containing AI data analysis
+        Updated context with AI data analysis
     """
-    logger.info("=" * 70)
-    logger.info("PHASE 3: AI DATA ANALYSIS")
+    logger.info("\n" + "=" * 70)
+    logger.info("PHASE 3: DATA ANALYSIS")
     logger.info("=" * 70)
 
     # Initialize Data Analysis Agent
@@ -96,39 +122,80 @@ async def run_data_analysis(
 
     # Analyze data with problem context
     ai_analysis = await data_agent.analyze_and_suggest(
-        dataset_info=data_results.get("analysis_report", {}),
-        competition_name=orchestrator.competition_name
+        dataset_info=context.get("basic_stats", {}),
+        competition_name=context["competition_name"]
     )
 
-    logger.info(f"✅ AI Analysis completed")
-    logger.info(f"   Target: {ai_analysis.get('target_column')}")
-    logger.info(f"   Task: {ai_analysis.get('task_type')}")
-    logger.info(f"   Features suggested: {len(ai_analysis.get('feature_engineering', []))}")
+    # Add to context
+    context["data_analysis"] = ai_analysis
 
-    return {
-        "ai_analysis": ai_analysis,
-        "competition_name": orchestrator.competition_name
-    }
+    # Extract key flags for conditional execution
+    context["needs_preprocessing"] = ai_analysis.get("preprocessing_required", False)
+    context["target_column"] = ai_analysis.get("target_column")
+    context["data_modality"] = ai_analysis.get("data_modality", "tabular")
+
+    logger.info(f"✅ Data Analysis completed")
+    logger.info(f"   Modality: {context['data_modality']}")
+    logger.info(f"   Target: {context['target_column']}")
+    logger.info(f"   Task: {ai_analysis.get('task_type', 'N/A')}")
+    logger.info(f"   Needs preprocessing: {context['needs_preprocessing']}")
+
+    return context
+
+
+async def run_preprocessing(
+    orchestrator,
+    context: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    PHASE 4: PREPROCESSING (Conditional - LLM + Worker)
+    Generates and executes preprocessing code if needed.
+
+    Args:
+        orchestrator: Orchestrator instance
+        context: Accumulated context dict
+
+    Returns:
+        Updated context with clean_data_path (or skipped if not needed)
+    """
+    if not context.get("needs_preprocessing", False):
+        logger.info("\n" + "=" * 70)
+        logger.info("PHASE 4: PREPROCESSING - SKIPPED")
+        logger.info("=" * 70)
+        logger.info("⏭️  Data is clean, no preprocessing needed")
+        context["clean_data_path"] = context["data_path"]
+        return context
+
+    logger.info("\n" + "=" * 70)
+    logger.info("PHASE 4: PREPROCESSING")
+    logger.info("=" * 70)
+
+    # TODO: Implement PreprocessingAgent when ready
+    # For now, use raw data
+    logger.info("⚠️  PreprocessingAgent not yet implemented")
+    logger.info("   Using raw data for now")
+    context["clean_data_path"] = context["data_path"]
+
+    return context
 
 
 async def run_planning(
     orchestrator,
-    problem_understanding: Dict[str, Any],
-    data_analysis: Dict[str, Any]
+    context: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
-    Execute planning phase - AI creates comprehensive execution plan.
+    PHASE 5: PLANNING (LLM Agent)
+    AI creates comprehensive execution plan with model selection and strategies.
 
     Args:
         orchestrator: Orchestrator instance
-        problem_understanding: Results from problem understanding
-        data_analysis: Results from data analysis
+        context: Accumulated context dict
 
     Returns:
-        Dictionary containing execution plan
+        Updated context with execution_plan
     """
-    logger.info("=" * 70)
-    logger.info("PHASE 4: AI PLANNING")
+    logger.info("\n" + "=" * 70)
+    logger.info("PHASE 5: PLANNING")
     logger.info("=" * 70)
 
     # Initialize Planning Agent
@@ -136,113 +203,166 @@ async def run_planning(
 
     # Create comprehensive plan
     execution_plan = await planning_agent.create_plan(
-        problem_understanding=problem_understanding,
-        data_analysis=data_analysis,
-        competition_name=orchestrator.competition_name
+        problem_understanding=context["problem_understanding"],
+        data_analysis=context["data_analysis"],
+        competition_name=context["competition_name"]
     )
+
+    # Add to context
+    context["execution_plan"] = execution_plan
+
+    # Extract key flags
+    context["needs_feature_engineering"] = execution_plan.get("feature_engineering_required", False)
 
     # Display plan summary
     summary = planning_agent.get_plan_summary(execution_plan)
     print(summary)
-    logger.info("Planning completed")
 
-    return {
-        "execution_plan": execution_plan,
-        "competition_name": orchestrator.competition_name
-    }
+    logger.info("✅ Planning completed")
+    logger.info(f"   Strategy: {execution_plan.get('strategy_summary', 'N/A')}")
+    logger.info(f"   Models: {len(execution_plan.get('models_to_try', []))}")
+    logger.info(f"   Needs feature engineering: {context['needs_feature_engineering']}")
+
+    return context
 
 
-async def run_initial_training(
+async def run_feature_engineering(
     orchestrator,
-    data_results: Dict[str, Any],
-    training_config: Dict[str, Any]
+    context: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Execute initial model training."""
-    logger.info("Starting initial model training...")
+    """
+    PHASE 6: FEATURE ENGINEERING (Conditional - LLM + Worker)
+    Generates and executes feature engineering code if needed.
 
-    # Determine target column from analysis
-    analysis = data_results.get("analysis_report", {})
-    datasets = analysis.get("datasets", {})
+    Args:
+        orchestrator: Orchestrator instance
+        context: Accumulated context dict
 
-    target_column = None
+    Returns:
+        Updated context with featured_data_path (or skipped if not needed)
+    """
+    if not context.get("needs_feature_engineering", False):
+        logger.info("\n" + "=" * 70)
+        logger.info("PHASE 6: FEATURE ENGINEERING - SKIPPED")
+        logger.info("=" * 70)
+        logger.info("⏭️  No feature engineering needed")
+        context["featured_data_path"] = context.get("clean_data_path", context["data_path"])
+        return context
+
+    logger.info("\n" + "=" * 70)
+    logger.info("PHASE 6: FEATURE ENGINEERING")
+    logger.info("=" * 70)
+
+    # TODO: Implement FeatureEngineeringAgent when ready
+    # For now, use clean data
+    logger.info("⚠️  FeatureEngineeringAgent not yet implemented")
+    logger.info("   Using clean data for now")
+    context["featured_data_path"] = context.get("clean_data_path", context["data_path"])
+
+    return context
+
+
+async def run_model_training(
+    orchestrator,
+    context: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    PHASE 7: MODEL TRAINING (Worker - No LLM)
+    Executes training based on execution plan from PlanningAgent.
+
+    Args:
+        orchestrator: Orchestrator instance
+        context: Accumulated context dict (includes execution_plan, data paths)
+
+    Returns:
+        Updated context with training results
+    """
+    logger.info("\n" + "=" * 70)
+    logger.info("PHASE 7: MODEL TRAINING")
+    logger.info("=" * 70)
+
+    # Get execution plan (created by PlanningAgent)
+    execution_plan = context.get("execution_plan")
+    if not execution_plan:
+        raise RuntimeError(
+            "❌ No execution plan from PlanningAgent! "
+            "This is a pure agentic system - requires AI decisions. "
+            "Check GEMINI_API_KEY."
+        )
+
+    # Find training file
+    datasets = context.get("basic_stats", {}).get("datasets", {})
     train_file = None
-    ai_analysis = None  # Initialize to avoid reference errors
-
-    # Find training file and target column
-    for filename, dataset_info in datasets.items():
+    for filename in datasets.keys():
         if "train" in filename.lower():
             train_file = filename
-            target_column = dataset_info.get("target_column")
             break
 
     if not train_file:
-        # Use first dataset
         train_file = list(datasets.keys())[0]
 
-    # ALWAYS use AI agent for complete analysis
-    if not target_column or not ai_analysis:
-        logger.info("🤖 Using AI Agent to identify target column...")
+    # Use featured data if available, otherwise clean data, otherwise raw data
+    data_dir = Path(context.get("featured_data_path",
+                               context.get("clean_data_path",
+                                          context["data_path"])))
+    data_path = data_dir / train_file if data_dir.is_dir() else data_dir
 
-        from ..llm_agents import DataAnalysisAgent
+    logger.info(f"📁 Using data: {data_path}")
+    logger.info(f"🎯 Target: {context['target_column']}")
+    logger.info(f"🤖 Following execution plan from AI")
 
-        data_agent = DataAnalysisAgent()
-
-        # Ask AI to analyze the dataset
-        ai_analysis = await data_agent.analyze_and_suggest(
-            dataset_info=data_results.get("analysis_report", {}),
-            competition_name=orchestrator.competition_name
-        )
-
-        target_column = ai_analysis.get("target_column")
-        confidence = ai_analysis.get("target_confidence", "unknown")
-
-        if not target_column:
-            raise RuntimeError(
-                "❌ AI Agent failed to identify target column. "
-                "This is a pure agentic AI system - no hardcoded fallbacks! "
-                "Make sure GEMINI_API_KEY is set in your environment."
-            )
-
-        logger.info(f"🤖 AI identified target: {target_column} (confidence: {confidence})")
-
-        # Log AI suggestions
-        if "preprocessing" in ai_analysis:
-            logger.info(f"📋 AI preprocessing suggestions: {ai_analysis['preprocessing']}")
-        if "feature_engineering" in ai_analysis:
-            logger.info(f"💡 AI feature ideas: {ai_analysis['feature_engineering'][:3]}")
-
-    logger.info(f"Using training file: {train_file}")
-    logger.info(f"Target column: {target_column}")
-
-    # Prepare training context WITH AI ANALYSIS
-    data_path = Path(data_results["data_path"]) / train_file
-
+    # Prepare training context with full accumulated context
     training_context = {
         "data_path": str(data_path),
-        "target_column": target_column,
-        "config": training_config,
-        "ai_analysis": ai_analysis,  # 🤖 Pass AI recommendations to trainer!
-        "competition_name": orchestrator.competition_name
+        "target_column": context["target_column"],
+        "execution_plan": execution_plan,  # ← PASS EXECUTION PLAN!
+        "data_analysis": context["data_analysis"],
+        "competition_name": context["competition_name"],
+        "config": context.get("training_config", {})
     }
 
+    # Execute training
     results = await orchestrator.model_trainer.run(training_context)
 
     if orchestrator.model_trainer.state == AgentState.ERROR:
         raise RuntimeError(f"Model training failed: {orchestrator.model_trainer.error}")
 
-    return results
+    # Add to context
+    context.update({
+        "model_path": results["model_path"],
+        "model_type": results["model_type"],
+        "cv_score": results.get("best_score"),
+        "training_results": results
+    })
+
+    logger.info(f"✅ Training completed")
+    logger.info(f"   Model: {results['model_type']}")
+    logger.info(f"   CV Score: {results.get('best_score', 'N/A')}")
+
+    return context
 
 
 async def run_submission(
     orchestrator,
-    training_results: Dict[str, Any],
-    data_results: Dict[str, Any]
+    context: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Execute submission phase."""
-    logger.info("Preparing and submitting predictions...")
+    """
+    PHASE 8: SUBMISSION (Worker - No LLM)
+    Generates predictions and submits to Kaggle.
+
+    Args:
+        orchestrator: Orchestrator instance
+        context: Accumulated context dict
+
+    Returns:
+        Updated context with submission results
+    """
+    logger.info("\n" + "=" * 70)
+    logger.info("PHASE 8: SUBMISSION")
+    logger.info("=" * 70)
 
     # Find test file
-    data_path = Path(data_results["data_path"])
+    data_path = Path(context["data_path"])
     test_files = list(data_path.glob("*test*.csv"))
 
     if not test_files:
@@ -253,37 +373,156 @@ async def run_submission(
         raise FileNotFoundError("No test file found in data directory")
 
     test_file = test_files[0]
-    logger.info(f"Using test file: {test_file.name}")
+    logger.info(f"📄 Using test file: {test_file.name}")
 
     # Prepare submission context
     submission_context = {
-        "model_path": training_results["model_path"],
+        "model_path": context["model_path"],
         "test_data_path": str(test_file),
-        "competition_name": orchestrator.competition_name,
-        "model_type": training_results["model_type"],
+        "competition_name": context["competition_name"],
+        "model_type": context["model_type"],
         "submission_message": f"Iteration {orchestrator.iteration} - Automated submission",
         "auto_submit": True,
-        "interactive": True,  # Ask for confirmation before submitting
-        # Format spec is auto-detected by SubmissionAgent
+        "interactive": True,
     }
 
     # Add NLP-specific context if needed
-    if training_results["model_type"] == "transformer":
-        submission_context["text_column"] = training_results.get("text_column")
+    if context.get("model_type") == "transformer":
+        submission_context["text_column"] = context.get("text_column")
 
+    # Execute submission
     results = await orchestrator.submission_agent.run(submission_context)
 
     if orchestrator.submission_agent.state == AgentState.ERROR:
         raise RuntimeError(f"Submission failed: {orchestrator.submission_agent.error}")
 
-    return results
+    # Add to context
+    context.update({
+        "submission_file": results.get("submission_file"),
+        "submission_id": results.get("submission_id"),
+        "leaderboard_score": results.get("leaderboard_score")
+    })
+
+    logger.info(f"✅ Submission completed")
+    logger.info(f"   Score: {results.get('leaderboard_score', 'Pending')}")
+
+    return context
 
 
-def log_phase_results(phase_name: str, results: Dict[str, Any]) -> None:
-    """Log phase completion and key results."""
-    logger.info(f"✓ {phase_name} completed")
+async def run_evaluation(
+    orchestrator,
+    context: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    PHASE 9: EVALUATION (LLM Agent)
+    Diagnoses model performance and decides if improvement is needed.
 
-    # Log key metrics
-    for key, value in results.items():
-        if key not in ["analysis_report", "leaderboard_data"]:
-            logger.info(f"  {key}: {value}")
+    Args:
+        orchestrator: Orchestrator instance
+        context: Accumulated context dict
+
+    Returns:
+        Updated context with evaluation results and needs_improvement flag
+    """
+    logger.info("\n" + "=" * 70)
+    logger.info("PHASE 9: EVALUATION")
+    logger.info("=" * 70)
+
+    # Wait for leaderboard to update
+    import asyncio
+    logger.info("⏳ Waiting for leaderboard to update...")
+    await asyncio.sleep(60)
+
+    # Check leaderboard
+    leaderboard_context = {
+        "competition_name": context["competition_name"],
+        "target_percentile": orchestrator.target_percentile
+    }
+
+    leaderboard_results = await orchestrator.leaderboard_monitor.run(leaderboard_context)
+
+    if orchestrator.leaderboard_monitor.state == AgentState.ERROR:
+        logger.warning(f"Leaderboard check failed: {orchestrator.leaderboard_monitor.error}")
+        # Continue anyway
+        leaderboard_results = {
+            "current_rank": "Unknown",
+            "current_percentile": 1.0,
+            "meets_target": False
+        }
+
+    current_rank = leaderboard_results.get("current_rank", "N/A")
+    current_percentile = leaderboard_results.get("current_percentile", 1.0)
+    meets_target = leaderboard_results.get("meets_target", False)
+
+    # Add to context
+    context.update({
+        "current_rank": current_rank,
+        "current_percentile": current_percentile,
+        "meets_target": meets_target,
+        "leaderboard_results": leaderboard_results
+    })
+
+    logger.info(f"✅ Evaluation completed")
+    logger.info(f"   Current rank: {current_rank}")
+    logger.info(f"   Current percentile: {current_percentile * 100:.1f}%")
+    logger.info(f"   Target percentile: {orchestrator.target_percentile * 100:.1f}%")
+    logger.info(f"   Meets target: {meets_target}")
+
+    # Decide if improvement needed
+    context["needs_improvement"] = not meets_target
+
+    return context
+
+
+async def run_optimization(
+    orchestrator,
+    context: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    PHASE 10: OPTIMIZATION (Conditional - LLM Agent)
+    AI decides next strategy and where to loop back.
+
+    Args:
+        orchestrator: Orchestrator instance
+        context: Accumulated context dict
+
+    Returns:
+        Updated context with optimization strategy (or None if done)
+    """
+    if not context.get("needs_improvement"):
+        logger.info("\n" + "=" * 70)
+        logger.info("PHASE 10: OPTIMIZATION - SKIPPED")
+        logger.info("=" * 70)
+        logger.info("🎉 Target achieved! No optimization needed.")
+        context["optimization_strategy"] = None
+        return context
+
+    logger.info("\n" + "=" * 70)
+    logger.info("PHASE 10: OPTIMIZATION")
+    logger.info("=" * 70)
+
+    from ..llm_agents import StrategyAgent
+
+    strategy_agent = StrategyAgent()
+
+    # Get AI strategy for next iteration
+    strategy = await strategy_agent.select_optimization_strategy(
+        recommendation=context.get("leaderboard_results", {}).get("recommendation", "improve"),
+        current_model=context.get("model_type", "lightgbm"),
+        tried_models=orchestrator.tried_models,
+        current_percentile=context.get("current_percentile", 1.0),
+        target_percentile=orchestrator.target_percentile,
+        iteration=orchestrator.iteration,
+        competition_type=context.get("data_modality", "tabular"),
+        performance_history=orchestrator.workflow_history
+    )
+
+    # Add to context
+    context["optimization_strategy"] = strategy
+
+    logger.info(f"✅ Optimization strategy created")
+    logger.info(f"   AI Strategy: {strategy.get('action', 'N/A')}")
+    logger.info(f"   Reasoning: {strategy.get('reasoning', 'N/A')}")
+    logger.info(f"   Loop back to: {strategy.get('loop_back_to', 'planning')}")
+
+    return context

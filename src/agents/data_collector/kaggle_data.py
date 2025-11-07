@@ -43,7 +43,7 @@ async def download_competition_data(
             "kaggle", "competitions", "download",
             "-c", competition_name,
             "-p", str(output_dir)
-        ]
+        ]# This is to create a kaggle command line call to download competition data
 
         # Set custom Kaggle config directory in environment
         env = os.environ.copy()

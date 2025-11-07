@@ -1,12 +1,11 @@
 """
 Orchestrator
 Central coordinator that manages all workflow components and oversees
-the competition lifecycle.
+the competition lifecycle following the 10-phase architecture.
 """
 import logging
 from typing import Any, Dict
 
-from .optimization_ai import run_optimization_loop_ai
 from ..base import BaseAgent, AgentState
 from ..data_collector import DataCollector
 from ..model_trainer import ModelTrainer
@@ -14,13 +13,16 @@ from ..submission import Submitter
 from ..leaderboard import LeaderboardMonitor
 
 from .phases import (
-    run_problem_understanding,
-    run_data_collection,
-    run_data_analysis,
-    run_planning,
-    run_initial_training,
-    run_submission,
-    log_phase_results
+    run_data_collection,           # Phase 1
+    run_problem_understanding,      # Phase 2
+    run_data_analysis,              # Phase 3
+    run_preprocessing,              # Phase 4 (conditional)
+    run_planning,                   # Phase 5
+    run_feature_engineering,        # Phase 6 (conditional)
+    run_model_training,             # Phase 7
+    run_submission,                 # Phase 8
+    run_evaluation,                 # Phase 9
+    run_optimization                # Phase 10 (conditional)
 )
 
 logger = logging.getLogger(__name__)
@@ -59,7 +61,7 @@ class Orchestrator(BaseAgent):
 
     async def run(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Main execution method for orchestration.
+        Main execution method for orchestration following 10-phase architecture.
 
         Args:
             context: Dictionary containing:
@@ -78,81 +80,117 @@ class Orchestrator(BaseAgent):
         self.state = AgentState.RUNNING
 
         try:
-            # Get competition name
+            # Initialize accumulated context
             competition_name = context.get("competition_name") or self.competition_name
             if not competition_name:
                 raise ValueError("competition_name must be provided")
 
             self.competition_name = competition_name
-            logger.info(f"Starting orchestration for competition: {competition_name}")
+
+            # Single accumulated context dict that grows through phases
+            accumulated_context = {
+                "competition_name": competition_name,
+                "external_sources": context.get("external_sources", []),
+                "training_config": context.get("training_config", {}),
+                "target_percentile": self.target_percentile
+            }
+
+            logger.info("\n" + "=" * 80)
+            logger.info("🚀 STARTING KAGGLE COMPETITION AUTOMATION")
+            logger.info("=" * 80)
+            logger.info(f"Competition: {competition_name}")
             logger.info(f"Target: Top {self.target_percentile * 100}%")
+            logger.info(f"Max iterations: {self.max_iterations}")
 
-            # Phase 1: Problem Understanding (AI reads competition BEFORE data)
-            logger.info("\n" + "=" * 70)
-            logger.info("STARTING AI-FIRST WORKFLOW")
-            logger.info("=" * 70)
-            problem_results = await run_problem_understanding(self, context)
-            problem_understanding = problem_results["problem_understanding"]
-            log_phase_results("Problem Understanding", problem_results)
+            # ═══════════════════════════════════════════════════════════════
+            # MAIN ITERATION LOOP
+            # ═══════════════════════════════════════════════════════════════
+            while self.iteration < self.max_iterations:
+                self.iteration += 1
+                logger.info(f"\n{'=' * 80}")
+                logger.info(f"📍 ITERATION {self.iteration}/{self.max_iterations}")
+                logger.info(f"{'=' * 80}")
 
-            # Phase 2: Data Collection
-            logger.info("\n=== PHASE 2: DATA COLLECTION ===")
-            data_results = await run_data_collection(self, context)
-            log_phase_results("Data Collection", data_results)
+                # PHASE 1: DATA COLLECTION (only first iteration)
+                if self.iteration == 1:
+                    accumulated_context = await run_data_collection(self, accumulated_context)
+                    print(accumulated_context)
 
-            # Phase 3: AI Data Analysis (with problem context)
-            data_analysis_results = await run_data_analysis(
-                self,
-                data_results,
-                problem_understanding
-            )
-            ai_analysis = data_analysis_results["ai_analysis"]
-            log_phase_results("Data Analysis", data_analysis_results)
+                # PHASE 2: PROBLEM UNDERSTANDING (only first iteration)
+                if self.iteration == 1:
+                    accumulated_context = await run_problem_understanding(self, accumulated_context)
 
-            # Phase 4: AI Planning (create execution plan)
-            planning_results = await run_planning(
-                self,
-                problem_understanding,
-                ai_analysis
-            )
-            execution_plan = planning_results["execution_plan"]
-            log_phase_results("Planning", planning_results)
+                # PHASE 3: DATA ANALYSIS (only first iteration)
+                if self.iteration == 1:
+                    accumulated_context = await run_data_analysis(self, accumulated_context)
 
-            # Phase 5: Model Training (execute the plan)
-            logger.info("\n=== PHASE 5: MODEL TRAINING (Executing Plan) ===")
-            training_results = await run_initial_training(
-                self,
-                data_results,
-                context.get("training_config", {})
-            )
-            log_phase_results("Initial Training", training_results)
+                # PHASE 4: PREPROCESSING (conditional, only first iteration)
+                if self.iteration == 1:
+                    accumulated_context = await run_preprocessing(self, accumulated_context)
 
-            # Phase 6: First Submission
-            logger.info("\n=== PHASE 6: FIRST SUBMISSION ===")
-            submission_results = await run_submission(
-                self,
-                training_results,
-                data_results
-            )
-            log_phase_results("Submission", submission_results)
+                # PHASE 5: PLANNING (AI creates/updates execution plan)
+                accumulated_context = await run_planning(self, accumulated_context)
 
-            # Phase 7: Monitoring and Iteration Loop
-            logger.info("\n=== PHASE 7: MONITORING & OPTIMIZATION ===")
-            final_results = await run_optimization_loop_ai(
-                self,
-                data_results,
-                training_results,
-                context
-            )
+                # PHASE 6: FEATURE ENGINEERING (conditional)
+                accumulated_context = await run_feature_engineering(self, accumulated_context)
 
-            self.results.update(final_results)
-            self.results["workflow_history"] = self.workflow_history
-            self.results["total_iterations"] = self.iteration
+                # PHASE 7: MODEL TRAINING (execute plan)
+                accumulated_context = await run_model_training(self, accumulated_context)
+
+                # PHASE 8: SUBMISSION
+                accumulated_context = await run_submission(self, accumulated_context)
+
+                # PHASE 9: EVALUATION
+                accumulated_context = await run_evaluation(self, accumulated_context)
+
+                # Record iteration history
+                self.workflow_history.append({
+                    "iteration": self.iteration,
+                    "model_type": accumulated_context.get("model_type"),
+                    "cv_score": accumulated_context.get("cv_score"),
+                    "leaderboard_score": accumulated_context.get("leaderboard_score"),
+                    "current_rank": accumulated_context.get("current_rank"),
+                    "current_percentile": accumulated_context.get("current_percentile"),
+                    "meets_target": accumulated_context.get("meets_target")
+                })
+
+                # Check if target achieved
+                if accumulated_context.get("meets_target"):
+                    logger.info("\n" + "=" * 80)
+                    logger.info("🎉 TARGET ACHIEVED!")
+                    logger.info("=" * 80)
+                    break
+
+                # PHASE 10: OPTIMIZATION (AI decides next move)
+                accumulated_context = await run_optimization(self, accumulated_context)
+
+                # Check if we should continue
+                if not accumulated_context.get("optimization_strategy"):
+                    logger.info("No optimization strategy - stopping")
+                    break
+
+            # ═══════════════════════════════════════════════════════════════
+            # FINAL RESULTS
+            # ═══════════════════════════════════════════════════════════════
+            self.results = {
+                "final_rank": accumulated_context.get("current_rank", "N/A"),
+                "final_percentile": accumulated_context.get("current_percentile", 1.0),
+                "final_score": accumulated_context.get("leaderboard_score"),
+                "target_met": accumulated_context.get("meets_target", False),
+                "total_iterations": self.iteration,
+                "workflow_history": self.workflow_history,
+                "final_context": accumulated_context
+            }
 
             self.state = AgentState.COMPLETED
-            logger.info("\n=== ORCHESTRATION COMPLETED ===")
+
+            logger.info("\n" + "=" * 80)
+            logger.info("✅ ORCHESTRATION COMPLETED")
+            logger.info("=" * 80)
             logger.info(f"Total iterations: {self.iteration}")
-            logger.info(f"Final rank: {final_results.get('final_rank', 'N/A')}")
+            logger.info(f"Final rank: {self.results['final_rank']}")
+            logger.info(f"Final percentile: {self.results['final_percentile'] * 100:.1f}%")
+            logger.info(f"Target met: {self.results['target_met']}")
 
             return self.results
 

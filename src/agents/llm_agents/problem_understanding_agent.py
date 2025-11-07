@@ -4,7 +4,9 @@ AI-powered agent that reads and understands Kaggle competition problems BEFORE a
 """
 import logging
 import json
-import subprocess
+from scripts.seleniumbasedcsrapper import scrape_kaggle_with_selenium
+import requests
+from bs4 import BeautifulSoup
 from typing import Dict, Any, Optional
 from pathlib import Path
 import google.generativeai as genai
@@ -50,13 +52,15 @@ class ProblemUnderstandingAgent:
 
     async def understand_competition(
         self,
-        competition_name: str
+        competition_name: str,
+        data_path: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Understand a Kaggle competition by reading its description and requirements.
 
         Args:
             competition_name: Name of the Kaggle competition
+            data_path: Path to downloaded data (from Phase 1)
 
         Returns:
             Dictionary containing comprehensive problem understanding:
@@ -89,8 +93,8 @@ class ProblemUnderstandingAgent:
         """
         logger.info(f"🔍 Understanding competition: {competition_name}")
 
-        # Step 1: Fetch competition information from Kaggle
-        competition_info = await self._fetch_competition_info(competition_name)
+        # Step 1: Fetch competition information from local data and Kaggle
+        competition_info = await self._fetch_competition_info(competition_name, data_path)
 
         if not competition_info:
             raise RuntimeError(
@@ -109,58 +113,58 @@ class ProblemUnderstandingAgent:
 
     async def _fetch_competition_info(
         self,
-        competition_name: str
+        competition_name: str,
+        data_path: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         """
-        Fetch competition information from Kaggle API.
+        Fetch competition information from local data and Kaggle web.
 
         Args:
             competition_name: Name of the competition
+            data_path: Path to downloaded data (from Phase 1)
 
         Returns:
             Dictionary with competition details or None if failed
         """
         try:
-            # Fetch competition details using Kaggle CLI
-            logger.info(f"📥 Fetching competition details from Kaggle...")
+            logger.info(f"📥 Gathering competition information...")
 
-            # Get competition overview
-            result = subprocess.run(
-                ["kaggle", "competitions", "list", "-s", competition_name],
-                capture_output=True,
-                text=True,
-                check=False
-            )
+            # Get file list from local data directory (already downloaded in Phase 1)
+            files_list = ""
+            if data_path:
+                data_dir = Path(data_path)
+                if data_dir.exists():
+                    files = list(data_dir.glob("*"))
+                    files_list = "\n".join([f.name for f in files if f.is_file()])
+                    logger.info(f"Found {len(files)} files locally")
 
-            if result.returncode != 0:
-                logger.warning(f"Kaggle CLI returned error: {result.stderr}")
-                return None
+            # Check cache for overview
+            cache_file = Path(data_path) / f"{competition_name}_overview.txt" if data_path else None
 
-            # Get competition files (to understand data format)
-            files_result = subprocess.run(
-                ["kaggle", "competitions", "files", competition_name],
-                capture_output=True,
-                text=True,
-                check=False
-            )
+            if cache_file and cache_file.exists():
+                logger.info(f"📂 Loading cached overview")
+                overview_text = cache_file.read_text()
+                print(repr(overview_text))
+            else:
+                # Scrape overview page for real competition description
+                overview_text = scrape_kaggle_with_selenium(competition_name)
 
-            # Try to get competition description from leaderboard page
-            # (Kaggle API doesn't have a direct endpoint for description)
-            # We'll construct info from available data
+                # Cache it
+                if cache_file and overview_text:
+                    cache_file.write_text(overview_text)
+                    logger.info(f"💾 Cached overview to {cache_file.name}")
 
             competition_info = {
                 "name": competition_name,
-                "list_output": result.stdout,
-                "files_list": files_result.stdout if files_result.returncode == 0 else "",
-                # Note: Full description would require web scraping or additional API
-                # For now, we work with what Kaggle CLI provides
+                "files_list": files_list,
+                "overview": overview_text
             }
 
-            logger.info(f"✅ Fetched competition info")
+            logger.info(f"✅ Gathered competition info")
             return competition_info
 
         except Exception as e:
-            logger.error(f"Error fetching competition info: {e}")
+            logger.error(f"Error gathering competition info: {e}")
             return None
 
     async def _ai_understand_problem(
@@ -218,17 +222,17 @@ class ProblemUnderstandingAgent:
         Returns:
             Formatted prompt string
         """
+        overview = competition_info.get('overview', '')
+        overview_section = f"\n**Competition Overview:**\n{overview}\n" if overview else ""
+
         return f"""You are an expert Kaggle competition analyst. Your task is to understand a competition problem BEFORE analyzing any data.
 
 # Competition Information
 
 **Competition Name:** {competition_name}
-
-**Available Information:**
-{competition_info.get('list_output', 'No list info')}
-
+{overview_section}
 **Data Files:**
-{competition_info.get('files_list', 'No files info')}
+{competition_info.get('files_list', 'Competition files will be analyzed')}
 
 # Your Task
 
