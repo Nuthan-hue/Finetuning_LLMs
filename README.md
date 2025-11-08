@@ -54,7 +54,11 @@ orchestrator = Orchestrator(
     target_percentile=0.20,  # Aim for top 20%
     max_iterations=5
 )
-asyncio.run(orchestrator.run({}))
+
+# AI decides everything - no manual config needed
+asyncio.run(orchestrator.run({
+    'competition_name': 'titanic'
+}))
 "
 ```
 
@@ -154,18 +158,21 @@ The system contains **ZERO hardcoded assumptions** about:
 
 - **Multi-Agent Architecture**
   - BaseAgent pattern with state management
-  - Orchestrator for workflow coordination
+  - Orchestrator for 10-phase workflow coordination
   - Specialized workers for each task
+  - Conditional agent invocation based on AI decisions
 
-- **AI-Powered Analysis** (Google Gemini)
-  - Comprehensive data analysis
-  - Kaggle-specific recommendations
-  - Task type detection
-  - Model recommendations
+- **AI-Powered Agents** (Multi-provider support)
+  - **ProblemUnderstandingAgent** - Reads competition description
+  - **DataAnalysisAgent** - Comprehensive data analysis
+  - **PreprocessingAgent** - Generates preprocessing code dynamically
+  - **PlanningAgent** - Creates execution plans
+  - **StrategyAgent** - Optimization strategies
+  - Supports Google Gemini, OpenAI GPT, Anthropic Claude
 
 - **Universal Data Pipeline**
-  - 8-step systematic preprocessing
-  - AI-driven transformations
+  - AI-generated preprocessing code
+  - AI-generated feature engineering code
   - Organized output structure
   - Column sanitization for compatibility
 
@@ -180,7 +187,7 @@ The system contains **ZERO hardcoded assumptions** about:
   - Data download via API
   - Submission handling
   - Leaderboard monitoring
-  - Iterative optimization
+  - Iterative optimization loop
 
 ### 🟡 Partially Implemented
 
@@ -190,14 +197,7 @@ The system contains **ZERO hardcoded assumptions** about:
   - Text preprocessing
   - *Needs: More task types, better tokenization*
 
-- **Problem Understanding**
-  - Data-first analysis working
-  - *Needs: Problem statement reading*
-
 ### 🔴 Planned Features
-
-- **Problem Understanding Agent** - Reads competition description FIRST
-- **Comprehensive Planning Agent** - Creates detailed execution plans
 - **Computer Vision Support** - Image models, detection, segmentation
 - **Time Series Support** - Forecasting, ARIMA, LSTMs
 - **Audio Support** - Speech recognition, sound classification
@@ -215,10 +215,12 @@ The system contains **ZERO hardcoded assumptions** about:
 │   ├── agents/
 │   │   ├── base.py                     # BaseAgent for all workers
 │   │   ├── llm_agents/                 # 🧠 AI Decision Makers
+│   │   │   ├── base_llm_agent.py       # [✅] Base for LLM agents
+│   │   │   ├── problem_understanding_agent.py  # [✅] Reads problem
 │   │   │   ├── data_analysis_agent.py  # [✅] Analyzes data
-│   │   │   ├── problem_understanding.py # [🔴] Reads problem (planned)
-│   │   │   ├── planning_agent.py       # [🔴] Creates plans (planned)
-│   │   │   └── strategy_optimizer.py   # [🔴] Improves (planned)
+│   │   │   ├── planning_agent.py       # [✅] Creates plans
+│   │   │   ├── preprocessing_agent.py  # [✅] Generates preprocessing code
+│   │   │   └── strategy_agent.py       # [✅] Optimization strategies
 │   │   ├── orchestrator/               # 🎯 Workflow coordination
 │   │   │   ├── orchestrator.py         # [✅] Main coordinator
 │   │   │   └── phases.py               # [✅] Phase execution
@@ -233,6 +235,8 @@ The system contains **ZERO hardcoded assumptions** about:
 │   │   │   └── submitter.py            # [✅] Submits to Kaggle
 │   │   └── leaderboard/                # 📈 Performance tracking
 │   │       └── monitor.py              # [✅] Monitors ranking
+│   ├── utils/                          # 🛠️ Utility functions
+│   │   └── ai_caller.py                # [✅] Centralized AI API calls
 │   ├── main.py                         # Entry point
 │   └── cli.py                          # Interactive menu
 ├── data/
@@ -262,18 +266,46 @@ The system contains **ZERO hardcoded assumptions** about:
 
 ```bash
 # Required
-GEMINI_API_KEY=your-gemini-api-key          # For AI agents
+GEMINI_API_KEY=your-gemini-api-key          # For AI agents (default)
 KAGGLE_USERNAME=your-kaggle-username         # For competitions
 KAGGLE_KEY=your-kaggle-api-key              # For competitions
 
-# Optional LLM Providers
-ANTHROPIC_API_KEY=your-claude-key           # For Claude agents
-OPENAI_API_KEY=your-openai-key              # For GPT agents
+# Optional: Switch AI Providers
+LLM_PROVIDER=google                          # google|openai|anthropic
+LLM_MODEL=gemini-2.0-flash-exp              # Model to use
+OPENAI_API_KEY=your-openai-key              # For GPT-4 (optional)
+ANTHROPIC_API_KEY=your-claude-key           # For Claude (optional)
 
 # System Config
 LOG_LEVEL=INFO                              # DEBUG|INFO|WARNING|ERROR
 ENABLE_GPU=true                             # Use GPU if available
 ```
+
+### Switching AI Providers
+
+The system uses **Google Gemini by default**, but you can easily switch to OpenAI or Anthropic:
+
+**Method 1: Environment Variable**
+```bash
+export LLM_PROVIDER=openai
+export LLM_MODEL=gpt-4
+export OPENAI_API_KEY=your-key
+```
+
+**Method 2: Edit AI Caller File**
+Edit `src/utils/ai_caller.py` and uncomment your preferred provider:
+```python
+# Option 1: Google Gemini (current)
+response = model.generate_content(prompt)
+
+# Option 2: OpenAI GPT (uncomment to use)
+# response = model.chat.completions.create(...)
+
+# Option 3: Anthropic Claude (uncomment to use)
+# response = model.messages.create(...)
+```
+
+All AI calls are centralized in **one file** (`src/utils/ai_caller.py`), making provider switching simple!
 
 ### Kaggle API Setup
 
@@ -313,7 +345,7 @@ async def main():
 asyncio.run(main())
 ```
 
-### Example 2: Custom Configuration
+### Example 2: Different Competition
 
 ```python
 from src.agents.orchestrator import Orchestrator
@@ -326,16 +358,13 @@ async def main():
         max_iterations=10
     )
 
-    # Custom training config (overrides AI recommendations)
-    training_config = {
-        "model_type": "xgboost",  # Force XGBoost
-        "n_estimators": 1000,
-        "learning_rate": 0.01
-    }
-
+    # AI decides everything - pure agentic system
     results = await orchestrator.run({
-        "training_config": training_config
+        "competition_name": "house-prices-advanced-regression-techniques"
     })
+
+    print(f"Final rank: {results['final_rank']}")
+    print(f"Target met: {results['target_met']}")
 
 asyncio.run(main())
 ```
@@ -436,14 +465,16 @@ The system continuously monitors:
 
 ## 🎯 Development Roadmap
 
-### Phase 1: Core Universal System (Current)
+### Phase 1: Core Universal System (Completed ✅)
 - [x] Multi-agent architecture
 - [x] AI-driven data analysis
 - [x] Universal tabular pipeline
-- [x] Basic model training
+- [x] Problem understanding agent
+- [x] Comprehensive planning agent
+- [x] Preprocessing code generation
+- [x] Strategy optimization
+- [x] Multi-provider AI support (Google/OpenAI/Anthropic)
 - [x] Kaggle integration
-- [ ] Problem understanding first
-- [ ] Comprehensive planning agent
 
 ### Phase 2: Multi-Modal Support
 - [ ] Full NLP support (all task types)
