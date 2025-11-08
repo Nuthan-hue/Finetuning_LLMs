@@ -57,3 +57,5 @@ temp/
 *.tmp
 
 /data
+/tests/phase_outputs
+AI_PROVIDER_GUIDE.md

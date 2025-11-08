@@ -12,6 +12,7 @@ from ..llm_agents import ProblemUnderstandingAgent
 from ..model_trainer import ModelTrainer
 from ..submission import Submitter
 from ..leaderboard import LeaderboardMonitor
+from scripts.save_phase_output import save_phase_output
 
 from .phases import (
     run_data_collection,           # Phase 1
@@ -114,16 +115,19 @@ class Orchestrator(BaseAgent):
                 if self.iteration == 1:
                     accumulated_context = await run_data_collection(self, accumulated_context)
                     print("Data Collection", accumulated_context)
+                    save_phase_output(self,accumulated_context["data_path"] , "data_collection", accumulated_context)
 
                 # PHASE 2: PROBLEM UNDERSTANDING (only first iteration)
                 if self.iteration == 1:
                     accumulated_context = await run_problem_understanding(self, accumulated_context)
                     print("Problem understanding", accumulated_context)
+                    save_phase_output(self, accumulated_context["data_path"],"problem_understanding", accumulated_context)
 
                 # PHASE 3: DATA ANALYSIS (only first iteration)
                 if self.iteration == 1:
                     accumulated_context = await run_data_analysis(self, accumulated_context)
                     print("Data Analysis", accumulated_context)
+                    save_phase_output(self,accumulated_context["data_path"], "data_analysis", accumulated_context)
 
                 # PHASE 4: PREPROCESSING (conditional, only first iteration)
                 if self.iteration == 1:

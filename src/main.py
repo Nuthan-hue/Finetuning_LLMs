@@ -49,15 +49,9 @@ async def run_full_competition(competition_name: str, target_percentile: float =
     )
 
     # Prepare context
+    # AI decides everything - no manual overrides needed
     context = {
-        "competition_name": competition_name,
-        "external_sources": [],  # Add external data URLs if needed
-        "training_config": {
-            "learning_rate": 0.05,
-            "num_boost_round": 1000,
-            "num_leaves": 31,
-            "max_depth": -1
-        }
+        "competition_name": competition_name
     }
 
     try:

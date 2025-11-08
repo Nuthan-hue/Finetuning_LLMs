@@ -40,7 +40,7 @@ async def quick_test():
     )
 
     context = {
-        "competition_name": "titanic",
+        "competition_name": "hull-tactical-market-prediction",
         "training_config": {
             "num_boost_round": 50  # Quick training
         }

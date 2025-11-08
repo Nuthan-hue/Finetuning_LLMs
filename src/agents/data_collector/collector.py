@@ -12,7 +12,6 @@ import requests
 from ..base import BaseAgent, AgentState
 from .kaggle_data import download_competition_data
 from .analysis import analyze_dataset
-from .external import collect_external_data
 from .utils import setup_data_directories
 
 logger = logging.getLogger(__name__)
@@ -62,14 +61,12 @@ class DataCollector(BaseAgent):
         Args:
             context: Dictionary containing:
                 - competition_name: str - Name of the Kaggle competition
-                - external_sources: List[str] - URLs for external data (optional)
                 - analyze: bool - Whether to perform initial analysis (default: True)
 
         Returns:
             Dictionary containing:
                 - data_path: Path to downloaded data
                 - analysis_report: Dict with data statistics
-                - external_data_paths: List of paths to external datasets
         """
         print("Starting Data Collector Agent...")
         self.state = AgentState.RUNNING
@@ -93,17 +90,6 @@ class DataCollector(BaseAgent):
             if context.get("analyze", True):
                 analysis_report = await analyze_dataset(data_path)
                 self.results["analysis_report"] = analysis_report
-
-            # Download external data if sources provided
-            external_sources = context.get("external_sources", [])
-            if external_sources:
-                external_dir = self.data_dir / "external"
-                external_paths = await collect_external_data(
-                    external_sources,
-                    external_dir,
-                    self.session
-                )
-                self.results["external_data_paths"] = external_paths
 
             self.state = AgentState.COMPLETED
             logger.info(f"Data collection completed for {competition_name}")
