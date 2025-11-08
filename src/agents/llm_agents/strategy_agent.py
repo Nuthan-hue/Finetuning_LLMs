@@ -4,9 +4,11 @@ AI-powered agent that decides optimization strategies based on leaderboard perfo
 Replaces hardcoded conditional logic with intelligent reasoning.
 """
 import logging
+import json
 from pathlib import Path
 from typing import Dict, Any
 from .base_llm_agent import BaseLLMAgent
+from src.utils.ai_caller import generate_ai_response
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +17,7 @@ class StrategyAgent(BaseLLMAgent):
     """AI agent that intelligently selects optimization strategies."""
 
     def __init__(self):
-        prompt_file = Path(__file__).parent.parent / "prompts" / "strategy_agent.txt"
+        prompt_file = Path(__file__).parent.parent.parent / "prompts" / "strategy_agent.txt"
         system_prompt = prompt_file.read_text()
 
         super().__init__(
@@ -55,30 +57,21 @@ class StrategyAgent(BaseLLMAgent):
         gap = current_percentile - target_percentile
         gap_percentage = gap * 100
 
-        context = {
-            "current_model": current_model,
-            "tried_models": ", ".join(tried_models) if tried_models else "None",
-            "current_percentile": f"{current_percentile * 100:.2f}%",
-            "target_percentile": f"{target_percentile * 100:.2f}%",
-            "gap": f"{gap_percentage:.2f}%",
-            "iteration": iteration,
-            "recommendation": recommendation,
-            "competition_type": competition_type,
-            "performance_trend": self._analyze_trend(performance_history) if performance_history else "No history"
-        }
+        tried_models_str = ", ".join(tried_models) if tried_models else "None"
+        performance_trend = self._analyze_trend(performance_history) if performance_history else "No history"
 
         prompt = f"""Analyze this Kaggle competition situation and recommend the BEST next optimization strategy.
 
 Current Situation:
 - **Iteration**: {iteration}
 - **Current Model**: {current_model}
-- **Already Tried**: {context['tried_models']}
-- **Current Rank**: {context['current_percentile']} percentile
-- **Target**: {context['target_percentile']} percentile
-- **Gap to Target**: {context['gap']}
+- **Already Tried**: {tried_models_str}
+- **Current Rank**: {current_percentile * 100:.2f}% percentile
+- **Target**: {target_percentile * 100:.2f}% percentile
+- **Gap to Target**: {gap_percentage:.2f}%
 - **Competition Type**: {competition_type}
 - **Leaderboard Recommendation**: {recommendation}
-- **Performance Trend**: {context['performance_trend']}
+- **Performance Trend**: {performance_trend}
 
 Available Actions:
 1. **switch_model**: Try a completely different model architecture
@@ -110,7 +103,21 @@ Respond with JSON:
 }}"""
 
         try:
-            strategy = await self.reason_json(prompt, context)
+            # Get AI strategy
+            logger.info(f"🤖 Requesting strategy from AI (iteration {iteration})...")
+            response_text = generate_ai_response(self.model, prompt)
+
+            # Parse JSON response
+            cleaned = response_text.strip()
+            if cleaned.startswith("```json"):
+                cleaned = cleaned[7:]
+            if cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+
+            strategy = json.loads(cleaned)
 
             # Ensure required fields
             if "action" not in strategy:

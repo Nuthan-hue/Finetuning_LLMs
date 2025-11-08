@@ -6,6 +6,7 @@ import logging
 from typing import Dict, Any
 from pathlib import Path
 from .base_llm_agent import BaseLLMAgent
+from src.utils.ai_caller import generate_ai_response
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ class PreprocessingAgent(BaseLLMAgent):
 
     def __init__(self):
         # Load system prompt from file
-        prompt_file = Path(__file__).parent.parent / "prompts" / "preprocessing_agent.txt"
+        prompt_file = Path(__file__).parent.parent.parent / "prompts" / "preprocessing_agent.txt"
         system_prompt = prompt_file.read_text()
 
         super().__init__(
@@ -48,12 +49,6 @@ class PreprocessingAgent(BaseLLMAgent):
         feature_types = data_analysis.get("feature_types", {})
         data_quality = data_analysis.get("data_quality", {})
         preprocessing_rec = data_analysis.get("preprocessing", {})
-
-        context = {
-            "modality": modality,
-            "target": target_column,
-            "data_path": data_path
-        }
 
         prompt = f"""Generate EXECUTABLE Python preprocessing code for this Kaggle competition.
 
@@ -186,7 +181,7 @@ Fill in the preprocessing section (marked with === YOUR PREPROCESSING CODE HERE 
 Generate the COMPLETE function with the preprocessing section filled in:"""
 
         # Generate code
-        response = await self.reason(prompt, context)
+        response = generate_ai_response(self.model, prompt)
 
         # Extract code from response
         code = self._extract_code(response)

@@ -24,7 +24,7 @@ class ProblemUnderstandingAgent(BaseLLMAgent):
     """
 
     def __init__(self):
-        prompt_file = Path(__file__).parent.parent / "prompts" / "problem_understanding_agent.txt"
+        prompt_file = Path(__file__).parent.parent.parent / "prompts" / "problem_understanding_agent.txt"
         system_prompt = prompt_file.read_text()
 
         super().__init__(

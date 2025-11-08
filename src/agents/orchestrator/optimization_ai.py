@@ -118,8 +118,8 @@ async def run_optimization_loop_ai(
 
             orchestrator.tried_models.append(new_model)
 
-            new_config = context.get("training_config", {}).copy()
-            new_config.update(strategy.get("config_updates", {}))
+            # AI provides all config via strategy
+            new_config = strategy.get("config_updates", {})
 
             training_results = await run_initial_training(
                 orchestrator,
@@ -138,8 +138,7 @@ async def run_optimization_loop_ai(
             logger.info(f"⚙️ AI recommends retraining with {'aggressive' if strategy['aggressive'] else 'moderate'} tuning...")
 
             # Use AI-suggested config updates
-            improved_config = context.get("training_config", {}).copy()
-            improved_config.update(strategy.get("config_updates", {}))
+            improved_config = strategy.get("config_updates", {})
 
             training_results = await run_initial_training(
                 orchestrator,
@@ -158,8 +157,7 @@ async def run_optimization_loop_ai(
             logger.info("🔧 AI recommends feature engineering (not yet implemented)")
             logger.info("Falling back to hyperparameter tuning...")
 
-            improved_config = context.get("training_config", {}).copy()
-            improved_config.update(strategy.get("config_updates", {}))
+            improved_config = strategy.get("config_updates", {})
 
             training_results = await run_initial_training(
                 orchestrator,

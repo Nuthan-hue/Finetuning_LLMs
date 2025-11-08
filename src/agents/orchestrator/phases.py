@@ -35,7 +35,6 @@ async def run_data_collection(
 
     collection_context = {
         "competition_name": context["competition_name"],
-        "external_sources": context.get("external_sources", []),
         "analyze": True
     }
 
@@ -379,7 +378,6 @@ async def run_model_training(
         "execution_plan": execution_plan,  # ← PASS EXECUTION PLAN!
         "data_analysis": context["data_analysis"],
         "competition_name": context["competition_name"],
-        "config": context.get("training_config", {})
     }
 
     # Execute training

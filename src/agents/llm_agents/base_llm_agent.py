@@ -1,13 +1,11 @@
 """
 Base LLM Agent
-Uses Google Gemini for intelligent decision-making and reasoning.
+Provides model initialization for all LLM-powered agents.
 """
 import os
 import logging
-import json
-from typing import Dict, Any, Optional, List
+from typing import Optional
 from dotenv import load_dotenv
-from src.utils.ai_caller import generate_ai_response
 
 # Load environment variables
 load_dotenv()
@@ -23,7 +21,12 @@ except ImportError:
 
 
 class BaseLLMAgent:
-    """Base class for LLM-powered agents using Google Gemini."""
+    """
+    Base class for LLM-powered agents.
+
+    Handles only model initialization. All agents directly call
+    generate_ai_response() from src.utils.ai_caller for simplicity.
+    """
 
     def __init__(
         self,
@@ -33,7 +36,7 @@ class BaseLLMAgent:
         system_prompt: Optional[str] = None
     ):
         """
-        Initialize LLM agent.
+        Initialize LLM agent with Google Gemini model.
 
         Args:
             name: Agent name
@@ -45,7 +48,6 @@ class BaseLLMAgent:
         self.model_name = model_name
         self.temperature = temperature
         self.system_prompt = system_prompt
-        self.conversation_history: List[Dict[str, str]] = []
 
         # Initialize Gemini
         if not GEMINI_AVAILABLE:
@@ -71,114 +73,4 @@ class BaseLLMAgent:
             system_instruction=system_prompt
         )
 
-        logger.info(f"Initialized {name} with {model_name}")
-
-    async def reason(
-        self,
-        prompt: str,
-        context: Optional[Dict[str, Any]] = None,
-        structured_output: bool = False
-    ) -> str:
-        """
-        Ask the LLM agent to reason about a problem.
-
-        Args:
-            prompt: The question or task for the agent
-            context: Additional context as dictionary
-            structured_output: Whether to expect JSON output
-
-        Returns:
-            Agent's response
-        """
-        try:
-            # Build full prompt with context
-            full_prompt = self._build_prompt(prompt, context, structured_output)
-
-            # Add to conversation history
-            self.conversation_history.append({
-                "role": "user",
-                "content": full_prompt
-            })
-
-            # Generate response
-            logger.info(f"{self.name} reasoning about: {prompt[:100]}...")
-            response_text = generate_ai_response(self.model, full_prompt)
-
-            # Add to conversation history
-            self.conversation_history.append({
-                "role": "assistant",
-                "content": response_text
-            })
-
-            logger.info(f"{self.name} response: {response_text[:200]}...")
-
-            return response_text
-
-        except Exception as e:
-            logger.error(f"Error in {self.name} reasoning: {e}")
-            raise
-
-    async def reason_json(
-        self,
-        prompt: str,
-        context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """
-        Ask the agent to reason and return structured JSON output.
-
-        Args:
-            prompt: The question or task
-            context: Additional context
-
-        Returns:
-            Parsed JSON response as dictionary
-        """
-        response = await self.reason(prompt, context, structured_output=True)
-
-        # Try to extract JSON from response
-        try:
-            # Remove markdown code blocks if present
-            if "```json" in response:
-                response = response.split("```json")[1].split("```")[0]
-            elif "```" in response:
-                response = response.split("```")[1].split("```")[0]
-
-            return json.loads(response.strip())
-
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON from {self.name}: {e}")
-            logger.error(f"Response was: {response}")
-            raise ValueError(f"Agent did not return valid JSON: {response[:200]}")
-
-    def _build_prompt(
-        self,
-        prompt: str,
-        context: Optional[Dict[str, Any]],
-        structured_output: bool
-    ) -> str:
-        """Build full prompt with context."""
-        parts = []
-
-        # Add context if provided
-        if context:
-            parts.append("## Context")
-            for key, value in context.items():
-                parts.append(f"**{key}**: {value}")
-            parts.append("")
-
-        # Add main prompt
-        parts.append(prompt)
-
-        # Add structured output instruction if needed
-        if structured_output:
-            parts.append("\n**IMPORTANT**: Respond with valid JSON only. No explanations outside the JSON.")
-
-        return "\n".join(parts)
-
-    def clear_history(self):
-        """Clear conversation history."""
-        self.conversation_history = []
-
-    def get_history(self) -> List[Dict[str, str]]:
-        """Get conversation history."""
-        return self.conversation_history
+        logger.info(f"✅ Initialized {name} with {model_name}")

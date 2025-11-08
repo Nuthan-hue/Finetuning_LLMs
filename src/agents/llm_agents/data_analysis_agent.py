@@ -3,9 +3,11 @@ Data Analysis Agent
 AI-powered agent that analyzes datasets and suggests preprocessing strategies.
 """
 import logging
+import json
 from typing import Dict, Any
 from pathlib import Path
 from .base_llm_agent import BaseLLMAgent
+from src.utils.ai_caller import generate_ai_response
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +17,7 @@ class DataAnalysisAgent(BaseLLMAgent):
 
     def __init__(self):
         # Load system prompt from file
-        prompt_file = Path(__file__).parent.parent / "prompts" / "data_analysis_agent.txt"
+        prompt_file = Path(__file__).parent.parent.parent / "prompts" / "data_analysis_agent.txt"
         system_prompt = prompt_file.read_text()
 
         super().__init__(
@@ -40,13 +42,6 @@ class DataAnalysisAgent(BaseLLMAgent):
         Returns:
             Dictionary with analysis and recommendations
         """
-        context = {
-            "competition": competition_name,
-            "num_files": len(dataset_info.get("datasets", {})),
-            "total_rows": sum(d.get("rows", 0) for d in dataset_info.get("datasets", {}).values()),
-            "features": dataset_info.get("datasets", {})
-        }
-
         # Build detailed dataset description
         dataset_desc = self._format_dataset_info(dataset_info)
 
@@ -119,7 +114,30 @@ Provide detailed Kaggle-specific analysis in JSON format:
 
 Be THOROUGH. Analyze sample_submission.csv format carefully!"""
 
-        analysis = await self.reason_json(prompt, context)
+        # Get AI analysis
+        logger.info(f"🤖 Analyzing dataset with AI for {competition_name}...")
+        response_text = generate_ai_response(self.model, prompt)
+
+        # Parse JSON response
+        try:
+            # Remove markdown code blocks if present
+            cleaned = response_text.strip()
+            if cleaned.startswith("```json"):
+                cleaned = cleaned[7:]
+            if cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+
+            analysis = json.loads(cleaned)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse AI response as JSON: {e}")
+            logger.error(f"Response: {response_text[:500]}")
+            raise RuntimeError(
+                f"❌ AI returned invalid JSON for {competition_name}. "
+                "Pure agentic AI system - no fallback!"
+            )
 
         if not analysis or "target_column" not in analysis:
             raise RuntimeError(

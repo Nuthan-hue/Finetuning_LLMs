@@ -68,9 +68,7 @@ class Orchestrator(BaseAgent):
         Args:
             context: Dictionary containing:
                 - competition_name: str - Kaggle competition name (optional if set in __init__)
-                - target_percentile: float - Target ranking (optional)
-                - external_sources: List[str] - External data sources (optional)
-                - training_config: Dict - Model training configuration (optional)
+                - target_percentile: float - Target ranking (optional, default: 0.20)
 
         Returns:
             Dictionary containing:
@@ -90,10 +88,9 @@ class Orchestrator(BaseAgent):
             self.competition_name = competition_name
 
             # Single accumulated context dict that grows through phases
+            # AI decides everything - no manual config overrides
             accumulated_context = {
                 "competition_name": competition_name,
-                "external_sources": context.get("external_sources", []),
-                "training_config": context.get("training_config", {}),
                 "target_percentile": self.target_percentile
             }
 

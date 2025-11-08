@@ -9,7 +9,7 @@ from pathlib import Path
 # Add src to path (go up one level from tests/ to project root, then into src/)
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from agents.orchestrator import Orchestrator
+from src.agents.orchestrator import Orchestrator
 
 # Configure logging
 logging.basicConfig(
