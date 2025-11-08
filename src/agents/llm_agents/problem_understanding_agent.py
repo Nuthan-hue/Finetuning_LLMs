@@ -9,6 +9,7 @@ from pathlib import Path
 
 from scripts.seleniumbasedcsrapper import scrape_kaggle_with_selenium
 from .base_llm_agent import BaseLLMAgent
+from src.utils.ai_caller import generate_ai_response
 
 logger = logging.getLogger(__name__)
 
@@ -199,10 +200,10 @@ Provide your analysis:"""
 
         try:
             # Get AI analysis
-            response = self.model.generate_content(prompt)
+            response_text = generate_ai_response(self.model, prompt)
 
             # Parse JSON response
-            understanding = self._parse_json_response(response.text)
+            understanding = self._parse_json_response(response_text)
 
             # Add metadata
             understanding["competition_name"] = competition_name

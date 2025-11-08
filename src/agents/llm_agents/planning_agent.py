@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Dict, Any
 from .base_llm_agent import BaseLLMAgent
+from src.utils.ai_caller import generate_ai_response
 
 logger = logging.getLogger(__name__)
 
@@ -119,10 +120,10 @@ class PlanningAgent(BaseLLMAgent):
 
         try:
             # Get AI planning (does BOTH analysis and planning)
-            response = self.model.generate_content(prompt)
+            response_text = generate_ai_response(self.model, prompt)
 
             # Parse JSON response
-            plan = self._parse_ai_response(response.text)
+            plan = self._parse_ai_response(response_text)
 
             # Add metadata
             plan["competition_name"] = competition_name

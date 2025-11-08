@@ -7,6 +7,7 @@ import logging
 import json
 from typing import Dict, Any, Optional, List
 from dotenv import load_dotenv
+from src.utils.ai_caller import generate_ai_response
 
 # Load environment variables
 load_dotenv()
@@ -101,9 +102,7 @@ class BaseLLMAgent:
 
             # Generate response
             logger.info(f"{self.name} reasoning about: {prompt[:100]}...")
-            response = self.model.generate_content(full_prompt)
-
-            response_text = response.text.strip()
+            response_text = generate_ai_response(self.model, full_prompt)
 
             # Add to conversation history
             self.conversation_history.append({
