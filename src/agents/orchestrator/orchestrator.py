@@ -134,11 +134,11 @@ class Orchestrator(BaseAgent):
                     accumulated_context = await run_preprocessing(self, accumulated_context)
                     print("Preprocessing", accumulated_context)
 
-                # PHASE 5: FEATURE ENGINEERING (conditional)
-                accumulated_context = await run_feature_engineering(self, accumulated_context)
-
-                # PHASE 6: PLANNING (AI creates/updates execution plan)
+                # PHASE 5: PLANNING (AI creates/updates execution plan)
                 accumulated_context = await run_planning(self, accumulated_context)
+
+                # PHASE 6: FEATURE ENGINEERING (conditional)
+                accumulated_context = await run_feature_engineering(self, accumulated_context)
 
 
                 # PHASE 7: MODEL TRAINING (execute plan)

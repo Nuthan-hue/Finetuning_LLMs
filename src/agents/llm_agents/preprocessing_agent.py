@@ -101,12 +101,16 @@ def preprocess_data(data_path: str) -> dict:
     \"\"\"
     data_path = Path(data_path)
 
-    # Load data
-    train = pd.read_csv(data_path / "train.csv")
-    test = pd.read_csv(data_path / "test.csv")
+    # Load data (NO HARDCODED FILE NAMES!)
+    train_file = "{train_file}"  # From DataAnalysisAgent
+    test_file = "{test_file}"    # From DataAnalysisAgent
+
+    train = pd.read_csv(data_path / train_file)
+    test = pd.read_csv(data_path / test_file) if test_file and test_file != "None" else None
 
     print(f"Original train shape: {{train.shape}}")
-    print(f"Original test shape: {{test.shape}}")
+    if test is not None:
+        print(f"Original test shape: {{test.shape}}")
 
     # Separate target
     target_col = "{target_column}"

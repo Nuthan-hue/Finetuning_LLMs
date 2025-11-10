@@ -4,6 +4,7 @@ Handles individual phases of the competition workflow following the 10-phase arc
 """
 import importlib
 import logging
+import json
 from typing import Any, Dict
 from pathlib import Path
 import sys
@@ -125,37 +126,41 @@ async def run_data_analysis(
     # Initialize Data Analysis Agent
     data_agent = DataAnalysisAgent()
 
-    # Analyze data with problem context
-    EDA_Code = await data_agent.analyze_and_suggest(
-        dataset = context.get("data_path"),
+    # Analyze data with problem context and get JSON recommendations
+    data_analysis = await data_agent.analyze_and_suggest(
+        data_path=context["data_path"],
         competition_name=context["competition_name"],
-        overview_text=context["overview_text"]
+        problem_understanding=context["problem_understanding"]
     )
-    eda_file = Path(context["data_path"]) / "EDA.py"
-    eda_file.write_text(EDA_Code)
-    logger.info(f"💾 Saved preprocessing code to: {eda_file}")
 
-    # Step 2: Execute the generated code
-    logger.info("⚙️  Executing EDA code...")
+    # Log key findings
+    logger.info(f"✅ Data modality: {data_analysis.get('data_modality')}")
+    logger.info(f"✅ Target column: {data_analysis.get('target_column')}")
+    logger.info(f"✅ Preprocessing required: {data_analysis.get('preprocessing_required')}")
 
-    try:
-
-        # Create a namespace for execution
-        namespace = {}
-
-        # Execute the code
-        exec(EDA_Code, namespace)
-
-    except Exception as e:
-        logger.error(f"❌  execution failed: {e}")
-        logger.warning("⚠️  Falling back to raw data")
-        context["clean_data_path"] = context["data_path"]
-        import traceback
-        traceback.print_exc()
-
-    return context
+    # Save analysis to file for reference
+    analysis_file = Path(context["data_path"]) / "data_analysis.json"
+    with open(analysis_file, 'w') as f:
+        json.dump(data_analysis, f, indent=2)
+    logger.info(f"💾 Saved analysis to: {analysis_file}")
 
     # Add to context
+    context["data_analysis"] = data_analysis
+    context["needs_preprocessing"] = data_analysis.get("preprocessing_required", False)
+
+    # Extract target column for downstream phases
+    context["target_column"] = data_analysis.get("target_column")
+
+    # Extract file mapping (NO HARDCODED NAMES!)
+    context["data_files"] = data_analysis.get("data_files", {})
+    logger.info(f"📁 File mapping: train={context['data_files'].get('train_file')}, test={context['data_files'].get('test_file')}")
+
+    # Log key insights
+    if "key_insights" in data_analysis:
+        logger.info("\n📊 Key Insights:")
+        for insight in data_analysis["key_insights"]:
+            logger.info(f"  • {insight}")
+
     return context
 
 
@@ -357,26 +362,41 @@ async def run_model_training(
             "Check GEMINI_API_KEY."
         )
 
-    # Find training file
-    datasets = context.get("basic_stats", {}).get("datasets", {})
-    train_file = None
-    for filename in datasets.keys():
-        if "train" in filename.lower():
-            train_file = filename
-            break
+    # Get training file from AI-identified file mapping (NO HARDCODED NAMES!)
+    data_files = context.get("data_files", {})
+    train_file = data_files.get("train_file")
 
     if not train_file:
-        train_file = list(datasets.keys())[0]
+        raise RuntimeError(
+            "❌ No training file identified by DataAnalysisAgent! "
+            "File mapping is missing from context."
+        )
 
-    # Use featured data if available, otherwise clean data, otherwise raw data
+    # Determine which data directory to use (priority: featured > clean > raw)
     data_dir = Path(context.get("featured_data_path",
                                context.get("clean_data_path",
                                           context["data_path"])))
-    data_path = data_dir / train_file if data_dir.is_dir() else data_dir
 
-    logger.info(f"📁 Using data: {data_path}")
-    logger.info(f"🎯 Target: {context['target_column']}")
-    logger.info(f"🤖 Following execution plan from AI")
+    # Construct full path to training file
+    # If preprocessing was done, look for clean_ prefixed version
+    if context.get("clean_data_path"):
+        # Try clean version first
+        clean_train_file = f"clean_{train_file}"
+        clean_path = data_dir / clean_train_file
+        if clean_path.exists():
+            data_path = clean_path
+            logger.info(f"📁 Using cleaned training file: {clean_train_file}")
+        else:
+            # Fallback to original
+            data_path = data_dir / train_file
+            logger.info(f"📁 Using original training file: {train_file}")
+    else:
+        data_path = data_dir / train_file
+        logger.info(f"📁 Using training file: {train_file}")
+
+    logger.info(f"📂 Data directory: {data_dir}")
+    logger.info(f"🎯 Target column: {context['target_column']}")
+    logger.info(f"🤖 Following AI execution plan")
 
     # Prepare training context with full accumulated context
     training_context = {
@@ -427,19 +447,43 @@ async def run_submission(
     logger.info("PHASE 8: SUBMISSION")
     logger.info("=" * 70)
 
-    # Find test file
-    data_path = Path(context["data_path"])
-    test_files = list(data_path.glob("*test*.csv"))
+    # Get test file from AI-identified file mapping (NO HARDCODED NAMES!)
+    data_files = context.get("data_files", {})
+    test_file_name = data_files.get("test_file")
 
-    if not test_files:
-        logger.warning("Test file not found, looking for sample_submission...")
-        test_files = list(data_path.glob("*sample*.csv"))
+    if not test_file_name:
+        logger.warning("⚠️  No test file identified by AI. Checking if we need to generate predictions from train...")
+        # Some competitions don't have explicit test files
+        # They generate future predictions or use train for cross-validation
+        raise FileNotFoundError(
+            "No test file identified. This competition may not have a separate test set. "
+            "Consider implementing prediction generation from training data."
+        )
 
-    if not test_files:
-        raise FileNotFoundError("No test file found in data directory")
+    # Determine which data directory to use
+    data_dir = Path(context.get("clean_data_path", context["data_path"]))
 
-    test_file = test_files[0]
-    logger.info(f"📄 Using test file: {test_file.name}")
+    # Construct full path to test file
+    # If preprocessing was done, look for clean_ prefixed version
+    if context.get("clean_data_path"):
+        # Try clean version first
+        clean_test_file = f"clean_{test_file_name}"
+        clean_test_path = data_dir / clean_test_file
+        if clean_test_path.exists():
+            test_file = clean_test_path
+            logger.info(f"📁 Using cleaned test file: {clean_test_file}")
+        else:
+            # Fallback to original
+            test_file = data_dir / test_file_name
+            logger.info(f"📁 Using original test file: {test_file_name}")
+    else:
+        test_file = data_dir / test_file_name
+        logger.info(f"📁 Using test file: {test_file_name}")
+
+    if not test_file.exists():
+        raise FileNotFoundError(f"Test file not found at {test_file}")
+
+    logger.info(f"📂 Test data directory: {data_dir}")
 
     # Prepare submission context
     submission_context = {
