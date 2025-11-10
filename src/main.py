@@ -11,7 +11,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from agents import (
-    Orchestrator,
+    Orchestrator,  # Legacy: Scripted pipeline
+    AgenticOrchestrator,  # New: Truly agentic
     DataCollector,
     ModelTrainer,
     Submitter,
@@ -31,22 +32,31 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def run_full_competition(competition_name: str, target_percentile: float = 0.20):
+async def run_full_competition(competition_name: str, target_percentile: float = 0.20, use_agentic: bool = False):
     """
     Run the full competition workflow using the orchestrator.
 
     Args:
         competition_name: Name of the Kaggle competition
         target_percentile: Target ranking (default: top 20%)
+        use_agentic: Use truly agentic coordinator (default: False for legacy)
     """
     logger.info(f"Starting full competition workflow for: {competition_name}")
+    logger.info(f"Mode: {'🧠 TRULY AGENTIC (Coordinator decides workflow)' if use_agentic else '📋 Legacy (Scripted pipeline)'}")
 
     # Initialize orchestrator
-    orchestrator = Orchestrator(
-        competition_name=competition_name,
-        target_percentile=target_percentile,
-        max_iterations=5
-    )
+    if use_agentic:
+        orchestrator = AgenticOrchestrator(
+            competition_name=competition_name,
+            target_percentile=target_percentile,
+            max_actions=50  # Agentic uses actions instead of iterations
+        )
+    else:
+        orchestrator = Orchestrator(
+            competition_name=competition_name,
+            target_percentile=target_percentile,
+            max_iterations=5
+        )
 
     # Prepare context
     # AI decides everything - no manual overrides needed
