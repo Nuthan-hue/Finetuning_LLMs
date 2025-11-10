@@ -35,7 +35,7 @@ async def run_data_collection(
 
     collection_context = {
         "competition_name": context["competition_name"],
-        "analyze": True
+        "analyze": False
     }
 
     results = await orchestrator.data_collector.run(collection_context)
@@ -48,7 +48,6 @@ async def run_data_collection(
     context.update({
         "data_path": results["data_path"],
         "files": results.get("files", []),
-        "basic_stats": results.get("analysis_report", {})
     })
 
     logger.info(f"✅ Data collected: {len(results.get('files', []))} files")
@@ -81,7 +80,7 @@ async def run_problem_understanding(
     problem_agent = orchestrator.problem_understanding_agent
 
     # Understand the competition (with access to downloaded data from Phase 1)
-    understanding = await problem_agent.understand_competition(
+    understanding, overview_text = await problem_agent.understand_competition(
         competition_name=context["competition_name"],
         data_path=context.get("data_path")  # From Phase 1
     )
@@ -92,16 +91,13 @@ async def run_problem_understanding(
 
     # Add to context
     context["problem_understanding"] = understanding
+    context["overview_text"] = overview_text
 
     logger.info("✅ Problem understanding completed")
     logger.info(f"   Task: {understanding.get('competition_type', 'N/A')}")
     logger.info(f"   Metric: {understanding.get('evaluation_metric', 'N/A')}")
 
     return context
-
-
-
-
 
 
 
@@ -130,25 +126,36 @@ async def run_data_analysis(
     data_agent = DataAnalysisAgent()
 
     # Analyze data with problem context
-    ai_analysis = await data_agent.analyze_and_suggest(
-        dataset_info=context.get("basic_stats", {}),
-        competition_name=context["competition_name"]
+    EDA_Code = await data_agent.analyze_and_suggest(
+        dataset = context.get("data_path"),
+        competition_name=context["competition_name"],
+        overview_text=context["overview_text"]
     )
+    eda_file = Path(context["data_path"]) / "EDA.py"
+    eda_file.write_text(EDA_Code)
+    logger.info(f"💾 Saved preprocessing code to: {eda_file}")
+
+    # Step 2: Execute the generated code
+    logger.info("⚙️  Executing EDA code...")
+
+    try:
+
+        # Create a namespace for execution
+        namespace = {}
+
+        # Execute the code
+        exec(EDA_Code, namespace)
+
+    except Exception as e:
+        logger.error(f"❌  execution failed: {e}")
+        logger.warning("⚠️  Falling back to raw data")
+        context["clean_data_path"] = context["data_path"]
+        import traceback
+        traceback.print_exc()
+
+    return context
 
     # Add to context
-    context["data_analysis"] = ai_analysis
-
-    # Extract key flags for conditional execution
-    context["needs_preprocessing"] = ai_analysis.get("preprocessing_required", False)
-    context["target_column"] = ai_analysis.get("target_column")
-    context["data_modality"] = ai_analysis.get("data_modality", "tabular")
-
-    logger.info(f"✅ Data Analysis completed")
-    logger.info(f"   Modality: {context['data_modality']}")
-    logger.info(f"   Target: {context['target_column']}")
-    logger.info(f"   Task: {ai_analysis.get('task_type', 'N/A')}")
-    logger.info(f"   Needs preprocessing: {context['needs_preprocessing']}")
-
     return context
 
 

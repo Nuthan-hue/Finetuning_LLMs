@@ -85,8 +85,15 @@ class DataCollector(BaseAgent):
                 self.kaggle_config_dir
             )
             self.results["data_path"] = str(data_path)
+            return self.results
 
-            # Analyze data if requested
+        except Exception as e:
+            error_msg = f"Error during data collection: {str(e)}"
+            logger.error(error_msg)
+            self.set_error(error_msg)
+            raise
+
+'''            # Analyze data if requested
             if context.get("analyze", True):
                 analysis_report = await analyze_dataset(data_path)
                 self.results["analysis_report"] = analysis_report
@@ -129,3 +136,4 @@ class DataCollector(BaseAgent):
             if target_file.exists():
                 return target_file
         return None
+        '''

@@ -123,7 +123,7 @@ class Orchestrator(BaseAgent):
                     print("Problem understanding", accumulated_context)
                     save_phase_output(self, accumulated_context["data_path"],"problem_understanding", accumulated_context)
 
-                # PHASE 3: DATA ANALYSIS (only first iteration)
+                # PHASE 3:  Exploratory DATA ANALYSIS (only first iteration)
                 if self.iteration == 1:
                     accumulated_context = await run_data_analysis(self, accumulated_context)
                     print("Data Analysis", accumulated_context)
@@ -134,11 +134,12 @@ class Orchestrator(BaseAgent):
                     accumulated_context = await run_preprocessing(self, accumulated_context)
                     print("Preprocessing", accumulated_context)
 
-                # PHASE 5: PLANNING (AI creates/updates execution plan)
+                # PHASE 5: FEATURE ENGINEERING (conditional)
+                accumulated_context = await run_feature_engineering(self, accumulated_context)
+
+                # PHASE 6: PLANNING (AI creates/updates execution plan)
                 accumulated_context = await run_planning(self, accumulated_context)
 
-                # PHASE 6: FEATURE ENGINEERING (conditional)
-                accumulated_context = await run_feature_engineering(self, accumulated_context)
 
                 # PHASE 7: MODEL TRAINING (execute plan)
                 accumulated_context = await run_model_training(self, accumulated_context)

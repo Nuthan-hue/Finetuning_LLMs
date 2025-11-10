@@ -66,11 +66,11 @@ class ProblemUnderstandingAgent(BaseLLMAgent):
         overview_text, files_list = self._get_overview(competition_name, data_path)
 
         # Step 2: Use AI to analyze and understand
-        understanding = self._analyze_with_ai(competition_name, overview_text, files_list)
+        understanding = self._analyze_with_ai(competition_name, self.system_prompt, overview_text, files_list)
 
         logger.info(f"✅ Problem understood: {understanding['task_type']} using {understanding['evaluation_metric']}")
 
-        return understanding
+        return understanding, overview_text
 
     def _get_overview(
         self,
@@ -117,6 +117,7 @@ class ProblemUnderstandingAgent(BaseLLMAgent):
     def _analyze_with_ai(
         self,
         competition_name: str,
+        system_prompt: str,
         overview_text: str,
         files_list: str
     ) -> Dict[str, Any]:
@@ -131,10 +132,10 @@ class ProblemUnderstandingAgent(BaseLLMAgent):
         Returns:
             Structured understanding dictionary
         """
-        logger.info("🤖 Analyzing competition with AI...")
-
-        # Build prompt for AI
-        prompt = f"""You are an expert Kaggle competition analyst. Analyze this competition and provide comprehensive understanding.
+        # logger.info("🤖 Analyzing competition with AI...")
+        prompt_file = Path(__file__).parent.parent.parent / "prompts" / "problem_understanding_prompt.txt"
+        system_prompt = prompt_file.read_text()
+        system_prompt= f'''You are an expert Kaggle competition analyst. Analyze this competition and provide comprehensive understanding.
 
 # Competition Information
 
@@ -197,6 +198,10 @@ Respond with ONLY a valid JSON object (no markdown, no code blocks):
 }}
 
 Provide your analysis:"""
+'''
+
+        # Build prompt for AI
+        prompt = system_prompt
 
         try:
             # Get AI analysis
