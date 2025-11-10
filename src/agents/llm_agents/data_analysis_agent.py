@@ -4,7 +4,7 @@ AI-powered agent that analyzes datasets and suggests preprocessing strategies.
 """
 import logging
 import json
-from typing import Dict, Any
+from typing import Dict, Any, Coroutine
 from pathlib import Path
 from .base_llm_agent import BaseLLMAgent
 from src.utils.ai_caller import generate_ai_response
@@ -29,9 +29,10 @@ class DataAnalysisAgent(BaseLLMAgent):
 
     async def analyze_and_suggest(
         self,
-        dataset_info: Dict[str, Any],
-        competition_name: str
-    ) -> Dict[str, Any]:
+        dataset : str,
+        competition_name: str,
+        overview_text: str,
+    ) -> str:
         """
         Analyze dataset and suggest preprocessing strategies.
 
@@ -41,117 +42,59 @@ class DataAnalysisAgent(BaseLLMAgent):
 
         Returns:
             Dictionary with analysis and recommendations
+            :param overview_text:
+            :param competition_name:
+            :param dataset:
         """
         # Build detailed dataset description
-        dataset_desc = self._format_dataset_info(dataset_info)
 
-        prompt = f"""Analyze this Kaggle competition dataset and provide COMPLETE task understanding.
 
-## Competition: {competition_name}
+        prompt = f''' Generate a Python module for performing Exploratory Data Analysis (EDA) that can be executed during the runtime of a application. The code should:
 
-## Dataset Information
-{dataset_desc}
+1. Be modular and callable via functions or classes
+2. Accept a pandas DataFrame as input (not just read from CSV)
+3. Log key insights (e.g., missing values, distributions, correlations) using Python’s logging module
+4. Avoid blocking visualizations (e.g., use non-interactive backends or save plots to disk)
+5. Return structured summaries (e.g., dicts or DataFrames) for downstream agents or components
+6. Be lightweight and dependency-safe (use only pandas, numpy, matplotlib/seaborn)
+7. Include optional hooks for saving plots or exporting reports
+8. Be compatible with agentic orchestration (e.g., callable by other agents)
 
-Look for sample_submission.csv to understand the output format!
-
-Provide detailed Kaggle-specific analysis in JSON format:
-
-{{
-    "task_type": "binary_classification|multiclass_classification|regression|clustering|time_series_forecasting|ranking|anomaly_detection|object_detection|segmentation|nlp_classification|nlp_generation",
-    "data_modality": "tabular|nlp|computer_vision|time_series|audio|mixed",
-    "has_target": true|false,
-    "target_column": "column_name or null if unsupervised",
-    "target_confidence": "high|medium|low",
-    "target_characteristics": {{
-        "type": "binary|multiclass|continuous|ordinal",
-        "num_classes": 2,
-        "classes": [0, 1],
-        "distribution": {{"0": 0.62, "1": 0.38}},
-        "is_imbalanced": true|false,
-        "range": [min, max] // for regression
-    }},
-    "evaluation_metric": "accuracy|rmse|rmsle|f1|auc|mae|logloss|custom",
-    "submission_format": {{
-        "id_column": "PassengerId",
-        "prediction_column": "Survived",
-        "output_type": "integer|float|binary|probabilities|class_labels",
-        "requires_transformation": "round|threshold|argmax|none"
-    }},
-    "data_quality": {{
-        "missing_values": {{"column": percentage}},
-        "outliers": ["column1", "column2"],
-        "class_balance": "balanced|imbalanced",
-        "issues": ["high_cardinality_in_X", "data_leakage_risk"]
-    }},
-    "preprocessing_required": true|false,
-    "feature_types": {{
-        "id_columns": ["PassengerId"],
-        "numerical": ["Age", "Fare"],
-        "categorical": ["Sex", "Embarked"],
-        "text": ["Name"],
-        "datetime": ["Date"],
-        "target": ["Survived"]
-    }},
-    "preprocessing": {{
-        "categorical_encoding": "label|onehot|target|embeddings",
-        "numerical_scaling": "standard|minmax|robust|none",
-        "handle_missing": "mean|median|mode|drop|knn",
-        "text_processing": "tfidf|word2vec|bert|none",
-        "feature_transformations": ["log(Fare)", "bin(Age,bins=5)"]
-    }},
-    "feature_engineering": [
-        "family_size = SibSp + Parch + 1",
-        "is_alone = (family_size == 1)",
-        "title = extract from Name",
-        "fare_per_person = Fare / family_size"
-    ],
-    "recommended_models": ["lightgbm", "xgboost", "catboost", "neural_network", "ensemble"],
-    "model_justification": "LightGBM for speed, XGBoost for accuracy, ensemble for top 1%",
-    "warnings": ["Potential data leakage in column X", "High missing rate in Age"],
-    "confidence": "high|medium|low",
-    "competition_strategy": "Focus on feature engineering. Target is imbalanced - use SMOTE or class weights."
-}}
-
-Be THOROUGH. Analyze sample_submission.csv format carefully!"""
+Assume this module will be used inside a multi-agent AI system solving Kaggle competitions end-to-end. The EDA should be robust, fast, and generalizable across tabular datasets.
+'''
 
         # Get AI analysis
-        logger.info(f"🤖 Analyzing dataset with AI for {competition_name}...")
-        response_text = generate_ai_response(self.model, prompt)
+        logger.info(f"🤖 Developing code for EDA for {competition_name}...")
+        pythonEADCode = generate_ai_response(self.model, prompt)
+
+        # Extract code from response
+        code = self._extract_code(pythonEADCode)
+
+        logger.info(f"✅ Generated EDA code ({len(code)} chars)")
+
+        return code
 
         # Parse JSON response
-        try:
-            # Remove markdown code blocks if present
-            cleaned = response_text.strip()
-            if cleaned.startswith("```json"):
-                cleaned = cleaned[7:]
-            if cleaned.startswith("```"):
-                cleaned = cleaned[3:]
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3]
-            cleaned = cleaned.strip()
-
-            analysis = json.loads(cleaned)
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse AI response as JSON: {e}")
-            logger.error(f"Response: {response_text[:500]}")
-            raise RuntimeError(
-                f"❌ AI returned invalid JSON for {competition_name}. "
-                "Pure agentic AI system - no fallback!"
-            )
-
-        if not analysis or "target_column" not in analysis:
-            raise RuntimeError(
-                f"❌ AI Data Analysis failed for {competition_name}. "
-                "Pure agentic AI system - no fallback! "
-                "Ensure GEMINI_API_KEY is set and valid."
-            )
-
-        logger.info(f"🤖 AI Data Analysis complete for {competition_name}")
-        logger.info(f"   Task: {analysis.get('task_type')}")
-        logger.info(f"   Target: {analysis.get('target_column')}")
-        logger.info(f"   Metric: {analysis.get('evaluation_metric')}")
-
         return analysis
+    def _extract_code(self, response: str) -> str:
+        """Extract Python code from AI response."""
+        # Remove markdown code blocks if present
+        code = response.strip()
+
+        if "```python" in code:
+            # Extract code between ```python and ```
+            start = code.find("```python") + 9
+            end = code.rfind("```")
+            if start > 8 and end > start:
+                code = code[start:end].strip()
+        elif "```" in code:
+            # Extract code between ``` and ```
+            start = code.find("```") + 3
+            end = code.rfind("```")
+            if start > 2 and end > start:
+                code = code[start:end].strip()
+
+        return code
 
     def _format_dataset_info(self, dataset_info: Dict[str, Any]) -> str:
         """Format dataset info for prompt."""

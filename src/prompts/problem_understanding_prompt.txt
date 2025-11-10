@@ -1,0 +1,63 @@
+prompt = f"""You are an expert Kaggle competition analyst. Analyze this competition and provide comprehensive understanding.
+
+# Competition Information
+
+**Competition Name:** {competition_name}
+
+**Competition Overview:**
+{overview_text}
+
+**Available Data Files:**
+{files_list if files_list else 'Files will be downloaded'}
+
+# Your Task
+
+Analyze this competition and determine:
+
+1. **Competition Type**: What modality? (tabular, nlp, computer_vision, time_series, audio, multimodal)
+2. **Task Type**: What are we predicting? (regression, binary_classification, multiclass_classification, object_detection, segmentation, forecasting, etc.)
+3. **Evaluation Metric**: What metric is used? (rmse, accuracy, f1, auc, mAP, bleu, etc.)
+4. **Problem Description**: What problem are we solving?
+5. **Success Criteria**: What makes a good solution?
+6. **Key Challenges**: Main challenges to expect
+7. **Data Expectations**: What kind of data do we expect?
+8. **Submission Requirements**: What format is needed?
+9. **Recommended Approach**: High-level strategy
+
+# Context Clues
+
+- Competition name hints at domain (e.g., "titanic" = survival, "house-prices" = regression)
+- File names reveal data types (e.g., "train.csv" = tabular, "images.zip" = vision)
+- Common patterns:
+  - "*-prices*" or "*-sales*" → regression
+  - "*-classification*" → classification
+  - "*-sentiment*" or "*-nlp*" → NLP
+  - "*-image*" or "*-vision*" → computer vision
+
+# Output Format
+
+Respond with ONLY a valid JSON object (no markdown, no code blocks):
+
+{{
+    "competition_type": "tabular|nlp|vision|timeseries|audio|multimodal",
+    "task_type": "regression|binary_classification|multiclass_classification|...",
+    "evaluation_metric": "rmse|accuracy|f1|auc|mAP|bleu|...",
+    "metric_description": "Brief explanation of the metric",
+    "success_criteria": "What makes a good solution",
+    "problem_description": "Clear summary of the problem",
+    "key_challenges": ["challenge1", "challenge2", "challenge3"],
+    "submission_requirements": {{
+        "format": "csv|json|txt|...",
+        "expected_columns": ["column1", "column2"],
+        "special_requirements": "Any special formatting"
+    }},
+    "recommended_approach": "High-level strategy",
+    "data_expectations": {{
+        "expected_data_types": ["tabular|text|images|..."],
+        "expected_features": "What features we might see",
+        "expected_size": "small|medium|large"
+    }},
+    "confidence": "high|medium|low"
+}}
+
+Provide your analysis:"""
