@@ -325,11 +325,75 @@ async def run_feature_engineering(
     logger.info("PHASE 6: FEATURE ENGINEERING")
     logger.info("=" * 70)
 
-    # TODO: Implement FeatureEngineeringAgent when ready
-    # For now, use clean data
-    logger.info("⚠️  FeatureEngineeringAgent not yet implemented")
-    logger.info("   Using clean data for now")
-    context["featured_data_path"] = context.get("clean_data_path", context["data_path"])
+    # Import FeatureEngineeringAgent
+    from ..llm_agents.feature_engineering_agent import FeatureEngineeringAgent
+
+    # Step 1: Generate feature engineering code with AI
+    logger.info("🤖 Generating feature engineering code with AI...")
+    feature_agent = FeatureEngineeringAgent()
+
+    # Get feature engineering plan from execution plan
+    execution_plan = context.get("execution_plan", {})
+    feature_plan = execution_plan.get("feature_engineering_plan", [])
+
+    if not feature_plan:
+        logger.warning("⚠️  No feature engineering plan found in execution plan")
+        logger.info("   Using clean data")
+        context["featured_data_path"] = context.get("clean_data_path", context["data_path"])
+        return context
+
+    feature_code = await feature_agent.generate_feature_engineering_code(
+        feature_engineering_plan=feature_plan,
+        data_analysis=context["data_analysis"],
+        clean_data_path=context.get("clean_data_path", context["data_path"])
+    )
+
+    logger.info(f"✅ Generated {len(feature_code)} chars of feature engineering code")
+
+    # Save the generated code to file
+    data_path = Path(context.get("clean_data_path", context["data_path"]))
+    feature_file = data_path / "feature_engineering.py"
+    feature_file.write_text(feature_code)
+    logger.info(f"💾 Saved feature engineering code to: {feature_file}")
+
+    # Step 2: Execute the generated code
+    logger.info("⚙️  Executing feature engineering code...")
+
+    try:
+        # Create a namespace for execution
+        namespace = {}
+
+        # Execute the code
+        exec(feature_code, namespace)
+
+        # Call the engineer_features function
+        if "engineer_features" not in namespace:
+            raise RuntimeError("Generated code missing 'engineer_features' function")
+
+        engineer_func = namespace["engineer_features"]
+        result = engineer_func(str(data_path))
+
+        logger.info(f"✅ Feature engineering completed")
+        logger.info(f"   Train shape: {result.get('train_shape')}")
+        logger.info(f"   Test shape: {result.get('test_shape')}")
+        logger.info(f"   Original features: {result.get('original_feature_count')}")
+        logger.info(f"   New features: {result.get('new_feature_count')}")
+        logger.info(f"   Features added: {result.get('features_added', 0)}")
+
+        # Update context with featured data path
+        featured_train = data_path / "featured_train.csv"
+        if featured_train.exists():
+            context["featured_data_path"] = str(data_path)
+            context["feature_engineering_result"] = result
+        else:
+            raise RuntimeError("Feature engineering did not create featured_train.csv")
+
+    except Exception as e:
+        logger.error(f"❌ Feature engineering execution failed: {e}")
+        logger.warning("⚠️  Falling back to clean data")
+        context["featured_data_path"] = context.get("clean_data_path", context["data_path"])
+        import traceback
+        traceback.print_exc()
 
     return context
 
@@ -378,9 +442,28 @@ async def run_model_training(
                                           context["data_path"])))
 
     # Construct full path to training file
-    # If preprocessing was done, look for clean_ prefixed version
-    if context.get("clean_data_path"):
-        # Try clean version first
+    # Priority: featured > clean > raw
+    if context.get("featured_data_path"):
+        # Try featured version first
+        featured_train = data_dir / "featured_train.csv"
+        if featured_train.exists():
+            data_path = featured_train
+            logger.info(f"📁 Using featured training file: featured_train.csv")
+        elif context.get("clean_data_path"):
+            # Fallback to clean
+            clean_train_file = f"clean_{train_file}"
+            clean_path = data_dir / clean_train_file
+            if clean_path.exists():
+                data_path = clean_path
+                logger.info(f"📁 Using cleaned training file: {clean_train_file}")
+            else:
+                data_path = data_dir / train_file
+                logger.info(f"📁 Using original training file: {train_file}")
+        else:
+            data_path = data_dir / train_file
+            logger.info(f"📁 Using original training file: {train_file}")
+    elif context.get("clean_data_path"):
+        # Try clean version
         clean_train_file = f"clean_{train_file}"
         clean_path = data_dir / clean_train_file
         if clean_path.exists():

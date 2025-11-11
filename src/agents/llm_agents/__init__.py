@@ -8,6 +8,7 @@ from .data_analysis_agent import DataAnalysisAgent
 from .problem_understanding_agent import ProblemUnderstandingAgent
 from .planning_agent import PlanningAgent
 from .preprocessing_agent import PreprocessingAgent
+from .feature_engineering_agent import FeatureEngineeringAgent
 
 __all__ = [
     "BaseLLMAgent",
@@ -15,5 +16,6 @@ __all__ = [
     "DataAnalysisAgent",
     "ProblemUnderstandingAgent",
     "PlanningAgent",
-    "PreprocessingAgent"
+    "PreprocessingAgent",
+    "FeatureEngineeringAgent"
 ]
