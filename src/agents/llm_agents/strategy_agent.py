@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from typing import Dict, Any
 from .base_llm_agent import BaseLLMAgent
-from src.utils.ai_caller import generate_ai_response
+from ...utils.ai_caller import generate_ai_response
 
 logger = logging.getLogger(__name__)
 

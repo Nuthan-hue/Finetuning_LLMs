@@ -9,7 +9,7 @@ from pathlib import Path
 
 from scripts.seleniumbasedcsrapper import scrape_kaggle_with_selenium
 from .base_llm_agent import BaseLLMAgent
-from src.utils.ai_caller import generate_ai_response
+from ...utils.ai_caller import generate_ai_response
 
 logger = logging.getLogger(__name__)
 
