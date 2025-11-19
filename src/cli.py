@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from agents.orchestrator import Orchestrator
+from agents.orchestrator import AgenticOrchestrator
 
 # Setup logging
 logging.basicConfig(
@@ -87,15 +87,15 @@ def get_advanced_settings() -> dict:
         except ValueError:
             print("   ❌ Invalid number. Try again.")
 
-    # Max iterations
+    # Max actions
     while True:
-        iter_input = input("   Max iterations (default: 5): ").strip()
-        if not iter_input:
-            max_iterations = 5
+        actions_input = input("   Max actions (default: 50): ").strip()
+        if not actions_input:
+            max_actions = 50
             break
         try:
-            max_iterations = int(iter_input)
-            if max_iterations > 0:
+            max_actions = int(actions_input)
+            if max_actions > 0:
                 break
             print("   ❌ Must be positive integer")
         except ValueError:
@@ -103,7 +103,7 @@ def get_advanced_settings() -> dict:
 
     return {
         "target_percentile": target_percentile,
-        "max_iterations": max_iterations
+        "max_actions": max_actions
     }
 
 
@@ -135,21 +135,21 @@ def check_prerequisites():
 
 
 async def run_competition(competition_name: str, settings: dict):
-    """Run the full competition workflow"""
+    """Run the full competition workflow using agentic AI"""
     print("\n" + "=" * 62)
-    print("🚀 STARTING AUTONOMOUS WORKFLOW")
+    print("🚀 STARTING AGENTIC AI WORKFLOW")
     print("=" * 62)
 
     print(f"\n📊 Configuration:")
     print(f"   Competition: {competition_name}")
     print(f"   Target: Top {settings['target_percentile']*100:.0f}%")
-    print(f"   Max Iterations: {settings['max_iterations']}")
+    print(f"   Max Actions: {settings['max_actions']}")
 
-    # Create orchestrator
-    orchestrator = Orchestrator(
+    # Create agentic orchestrator
+    orchestrator = AgenticOrchestrator(
         competition_name=competition_name,
         target_percentile=settings['target_percentile'],
-        max_iterations=settings['max_iterations']
+        max_actions=settings['max_actions']
     )
 
     # Run workflow
@@ -210,7 +210,7 @@ def main():
         else:
             settings = {
                 "target_percentile": 0.20,
-                "max_iterations": 5
+                "max_actions": 50
             }
 
         # Important reminders
