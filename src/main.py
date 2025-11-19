@@ -10,9 +10,8 @@ import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
-from agents import (
-    Orchestrator,  # Legacy: Scripted pipeline
-    AgenticOrchestrator,  # New: Truly agentic
+from src.agents import (
+    AgenticOrchestrator,
     DataCollector,
     ModelTrainer,
     Submitter,
@@ -32,31 +31,23 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def run_full_competition(competition_name: str, target_percentile: float = 0.20, use_agentic: bool = False):
+async def run_full_competition(competition_name: str, target_percentile: float = 0.20):
     """
-    Run the full competition workflow using the orchestrator.
+    Run the full competition workflow using the agentic orchestrator.
 
     Args:
         competition_name: Name of the Kaggle competition
         target_percentile: Target ranking (default: top 20%)
-        use_agentic: Use truly agentic coordinator (default: False for legacy)
     """
-    logger.info(f"Starting full competition workflow for: {competition_name}")
-    logger.info(f"Mode: {'🧠 TRULY AGENTIC (Coordinator decides workflow)' if use_agentic else '📋 Legacy (Scripted pipeline)'}")
+    print(f"Starting full competition workflow for: {competition_name}")
+    print("Mode: Agentic AI (Coordinator Agent decides workflow dynamically)")
 
-    # Initialize orchestrator
-    if use_agentic:
-        orchestrator = AgenticOrchestrator(
-            competition_name=competition_name,
-            target_percentile=target_percentile,
-            max_actions=50  # Agentic uses actions instead of iterations
-        )
-    else:
-        orchestrator = Orchestrator(
-            competition_name=competition_name,
-            target_percentile=target_percentile,
-            max_iterations=5
-        )
+    # Initialize agentic orchestrator
+    orchestrator = AgenticOrchestrator(
+        competition_name=competition_name,
+        target_percentile=target_percentile,
+        max_actions=50
+    )
 
     # Prepare context
     # AI decides everything - no manual overrides needed
@@ -68,24 +59,14 @@ async def run_full_competition(competition_name: str, target_percentile: float =
         # Run orchestration
         results = await orchestrator.run(context)
 
-        # Display results
-        logger.info("\n" + "="*50)
-        logger.info("FINAL RESULTS")
-        logger.info("="*50)
-        logger.info(f"Competition: {competition_name}")
-        logger.info(f"Final Rank: {results.get('final_rank', 'N/A')}")
-        logger.info(f"Final Percentile: {results.get('final_percentile', 'N/A'):.2%}")
-        logger.info(f"Target Met: {results.get('target_met', False)}")
-        logger.info(f"Total Iterations: {results.get('total_iterations', 0)}")
-
         # Get workflow summary
         summary = orchestrator.get_workflow_summary()
-        logger.info(f"\nWorkflow History: {len(summary['workflow_history'])} iterations")
+        print(f"\nWorkflow History: {len(summary['workflow_history'])} iterations")
 
         return results
 
     except Exception as e:
-        logger.error(f"Error in competition workflow: {str(e)}")
+        print(f"Error in competition workflow: {str(e)}")
         raise
 
 
@@ -95,7 +76,7 @@ async def run_data_collection_only(competition_name: str):
 
     Useful for exploring a competition before starting the full workflow.
     """
-    logger.info(f"Running data collection for: {competition_name}")
+    print(f"Running data collection for: {competition_name}")
 
     # Initialize data collector
     collector = DataCollector()
@@ -110,14 +91,14 @@ async def run_data_collection_only(competition_name: str):
 
     # Display analysis
     analysis = results.get("analysis_report", {})
-    logger.info("\nData Analysis:")
-    logger.info(f"Files found: {len(analysis.get('files', []))}")
+    print("\nData Analysis:")
+    print(f"Files found: {len(analysis.get('files', []))}")
 
     for filename, info in analysis.get("datasets", {}).items():
-        logger.info(f"\n{filename}:")
-        logger.info(f"  Shape: {info['shape']}")
-        logger.info(f"  Columns: {len(info['columns'])}")
-        logger.info(f"  Target: {info.get('target_column', 'Unknown')}")
+        print(f"\n{filename}:")
+        print(f"  Shape: {info['shape']}")
+        print(f"  Columns: {len(info['columns'])}")
+        print(f"  Target: {info.get('target_column', 'Unknown')}")
 
     return results
 
@@ -128,7 +109,7 @@ async def run_training_only(data_path: str, target_column: str):
 
     Useful for testing different models on already downloaded data.
     """
-    logger.info("Running model training...")
+    print("Running model training...")
 
     # Initialize trainer
     trainer = ModelTrainer()
@@ -144,28 +125,19 @@ async def run_training_only(data_path: str, target_column: str):
     }
 
     results = await trainer.run(context)
-
-    logger.info("\nTraining Results:")
-    logger.info(f"Model Type: {results.get('model_type')}")
-    logger.info(f"Model Path: {results.get('model_path')}")
-    logger.info(f"Best Score: {results.get('best_score'):.4f}")
-    logger.info(f"Metric: {results.get('metric')}")
-
     return results
 
 
 def display_menu():
     """Display interactive menu."""
-    print("\n" + "="*60)
     print("Kaggle Competition Multi-Agent System")
-    print("="*60)
     print("\nOptions:")
     print("1. Run Full Competition Workflow (Automated)")
     print("2. Data Collection Only")
     print("3. Model Training Only")
     print("4. Check Leaderboard")
     print("5. Exit")
-    print("\n" + "="*60)
+
 
 
 async def main():
@@ -181,9 +153,9 @@ async def main():
 
     # Check Kaggle credentials
     if not os.getenv("KAGGLE_USERNAME") or not os.getenv("KAGGLE_KEY"):
-        logger.warning("Kaggle credentials not found in environment!")
-        logger.warning("Please set KAGGLE_USERNAME and KAGGLE_KEY in .env file")
-        logger.warning("Or ensure ~/.kaggle/kaggle.json is properly configured")
+        print("Kaggle credentials not found in environment!")
+        print("Please set KAGGLE_USERNAME and KAGGLE_KEY in .env file")
+        print("Or ensure ~/.kaggle/kaggle.json is properly configured")
 
     while True:
         display_menu()
@@ -229,7 +201,7 @@ async def main():
                 print("Invalid choice. Please try again.")
 
         except Exception as e:
-            logger.error(f"Error: {str(e)}")
+            print(f"Error: {str(e)}")
             print(f"\nError occurred: {str(e)}")
 
         input("\nPress Enter to continue...")
