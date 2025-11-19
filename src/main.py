@@ -5,12 +5,16 @@ This module demonstrates how to use the orchestrator and specialized agents
 to automate Kaggle competition participation.
 """
 import os
+import sys
 import asyncio
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
-from src.agents import (
+sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from agents import (
     AgenticOrchestrator,
     DataCollector,
     ModelTrainer,
