@@ -6,7 +6,7 @@ import logging
 from typing import Dict, Any
 from pathlib import Path
 from .base_llm_agent import BaseLLMAgent
-from ...utils.ai_caller import generate_ai_response
+from src.utils.ai_caller import generate_ai_response
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,8 @@ class PreprocessingAgent(BaseLLMAgent):
         data_files = data_analysis.get("data_files", {})
         train_file = data_files.get("train_file", "train.csv")
         test_file = data_files.get("test_file", "test.csv")
+
+        logger.info(f"DEBUG: train_file={train_file}, test_file={test_file}, data_files={data_files}")
 
         prompt = f"""Generate EXECUTABLE Python preprocessing code for this Kaggle competition.
 
