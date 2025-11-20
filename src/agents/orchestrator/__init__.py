@@ -1,9 +1,9 @@
 """
 Orchestrator Package
-Central coordinator for managing competition workflow.
+Central coordinator for managing competition workflow using agentic AI.
 """
-from .orchestrator import Orchestrator
+from .orchestrator_agentic import AgenticOrchestrator
 
 __all__ = [
-    "Orchestrator",
+    "AgenticOrchestrator",
 ]
