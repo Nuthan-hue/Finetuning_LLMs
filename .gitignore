@@ -58,4 +58,7 @@ temp/
 
 /data
 /tests/phase_outputs
-AI_PROVIDER_GUIDE.md
+docs/AI_PROVIDER_GUIDE.md
+
+*.md
+check_api.py

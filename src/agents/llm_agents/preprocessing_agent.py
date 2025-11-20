@@ -50,6 +50,13 @@ class PreprocessingAgent(BaseLLMAgent):
         data_quality = data_analysis.get("data_quality", {})
         preprocessing_rec = data_analysis.get("preprocessing", {})
 
+        # Get file names from DataAnalysisAgent (NO HARDCODED NAMES!)
+        data_files = data_analysis.get("data_files", {})
+        train_file = data_files.get("train_file", "train.csv")
+        test_file = data_files.get("test_file", "test.csv")
+
+        logger.info(f"DEBUG: train_file={train_file}, test_file={test_file}, data_files={data_files}")
+
         prompt = f"""Generate EXECUTABLE Python preprocessing code for this Kaggle competition.
 
 ## Competition Details
@@ -80,6 +87,10 @@ Generate a complete Python function that:
 9. **Preserves target column**: Keep target in train, not in test
 10. **Returns summary**: Dict with statistics
 
+## Data Files (AI-Identified - NO HARDCODING!)
+- **Train file**: {train_file}
+- **Test file**: {test_file}
+
 ## Code Template
 
 ```python
@@ -101,16 +112,16 @@ def preprocess_data(data_path: str) -> dict:
     \"\"\"
     data_path = Path(data_path)
 
-    # Load data (NO HARDCODED FILE NAMES!)
-    train_file = "{train_file}"  # From DataAnalysisAgent
-    test_file = "{test_file}"    # From DataAnalysisAgent
+    # Load data (AI-identified file names - NO HARDCODING!)
+    train_file = "{train_file}"
+    test_file = "{test_file}"
 
     train = pd.read_csv(data_path / train_file)
     test = pd.read_csv(data_path / test_file) if test_file and test_file != "None" else None
 
-    print(f"Original train shape: {{train.shape}}")
+    print(f"Original train shape: {{{{train.shape}}}}")
     if test is not None:
-        print(f"Original test shape: {{test.shape}}")
+        print(f"Original test shape: {{{{test.shape}}}}")
 
     # Separate target
     target_col = "{target_column}"
@@ -120,16 +131,16 @@ def preprocess_data(data_path: str) -> dict:
 
     # Store IDs if present
     id_columns = {feature_types.get('id_columns', [])}
-    test_ids = {{}}
+    test_ids = {{{{}}}}
     for id_col in id_columns:
-        if id_col in test.columns:
+        if test is not None and id_col in test.columns:
             test_ids[id_col] = test[id_col].copy()
 
     # Drop ID columns from both
     for id_col in id_columns:
         if id_col in train.columns:
             train = train.drop(columns=[id_col])
-        if id_col in test.columns:
+        if test is not None and id_col in test.columns:
             test = test.drop(columns=[id_col])
 
     # === YOUR PREPROCESSING CODE HERE ===
@@ -151,22 +162,25 @@ def preprocess_data(data_path: str) -> dict:
     train[target_col] = y_train
 
     # Add IDs back to test
-    for id_col, id_values in test_ids.items():
-        test[id_col] = id_values
+    if test is not None:
+        for id_col, id_values in test_ids.items():
+            test[id_col] = id_values
 
     # Save cleaned data
     train.to_csv(data_path / "clean_train.csv", index=False)
-    test.to_csv(data_path / "clean_test.csv", index=False)
+    if test is not None:
+        test.to_csv(data_path / "clean_test.csv", index=False)
 
-    print(f"Clean train shape: {{train.shape}}")
-    print(f"Clean test shape: {{test.shape}}")
+    print(f"Clean train shape: {{{{train.shape}}}}")
+    if test is not None:
+        print(f"Clean test shape: {{{{test.shape}}}}")
 
-    return {{
+    return {{{{
         "train_shape": train.shape,
-        "test_shape": test.shape,
+        "test_shape": test.shape if test is not None else (0, 0),
         "columns": list(train.columns),
         "missing_values_remaining": train.isnull().sum().sum()
-    }}
+    }}}}
 ```
 
 ## Your Task

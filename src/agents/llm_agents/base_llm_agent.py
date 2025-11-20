@@ -1,67 +1,52 @@
-"""
-Base LLM Agent
-Provides model initialization for all LLM-powered agents.
-"""
 import os
 import logging
 from typing import Optional
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-try:
-    import google.generativeai as genai
-    GEMINI_AVAILABLE = True
-except ImportError:
-    GEMINI_AVAILABLE = False
-    logger.warning("google-generativeai not installed. Run: pip install google-generativeai")
-
 
 class BaseLLMAgent:
-    """
-    Base class for LLM-powered agents.
-
-    Handles only model initialization. All agents directly call
-    generate_ai_response() from src.utils.ai_caller for simplicity.
-    """
 
     def __init__(
         self,
         name: str,
-        model_name: str = "gemini-2.0-flash-exp",
+        model_name: Optional[str] = None,
         temperature: float = 0.7,
         system_prompt: Optional[str] = None
     ):
-        """
-        Initialize LLM agent with Google Gemini model.
-
-        Args:
-            name: Agent name
-            model_name: Gemini model to use
-            temperature: Sampling temperature (0.0-1.0)
-            system_prompt: System instructions for the agent
-        """
         self.name = name
-        self.model_name = model_name
         self.temperature = temperature
         self.system_prompt = system_prompt
+        self.provider = os.getenv("AI_PROVIDER", "gemini").lower()
 
-        # Initialize Gemini
-        if not GEMINI_AVAILABLE:
-            raise RuntimeError("google-generativeai not installed")
+        if self.provider == "gemini":
+            self._init_gemini(model_name or "gemini-2.0-flash-exp")
+        elif self.provider == "groq":
+            self._init_groq(model_name or "llama-3.3-70b-versatile")
+        elif self.provider == "openai":
+            self._init_openai(model_name or "gpt-4")
+        elif self.provider == "kimi":
+            self._init_kimi(model_name or "moonshot-v1-8k")
+        else:
+            raise ValueError(f"Unknown AI provider: {self.provider}")
+
+    def _init_gemini(self, model_name: str):
+        try:
+            import google.generativeai as genai
+        except ImportError:
+            raise RuntimeError("google-generativeai not installed. Run: pip install google-generativeai")
 
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            raise ValueError("GEMINI_API_KEY not found in environment variables")
+            raise ValueError("GEMINI_API_KEY not found")
 
         genai.configure(api_key=api_key)
 
-        # Configure model
         generation_config = {
-            "temperature": temperature,
+            "temperature": self.temperature,
             "top_p": 0.95,
             "top_k": 64,
             "max_output_tokens": 8192,
@@ -70,7 +55,55 @@ class BaseLLMAgent:
         self.model = genai.GenerativeModel(
             model_name=model_name,
             generation_config=generation_config,
-            system_instruction=system_prompt
+            system_instruction=self.system_prompt
         )
+        self.model_name = model_name
+        logger.info(f"✅ {self.name} with Gemini ({model_name})")
 
-        logger.info(f"✅ Initialized {name} with {model_name}")
+    def _init_groq(self, model_name: str):
+        try:
+            from openai import OpenAI
+        except ImportError:
+            raise RuntimeError("openai not installed. Run: pip install openai")
+
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            raise ValueError("GROQ_API_KEY not found")
+
+        self.model = OpenAI(
+            api_key=api_key,
+            base_url="https://api.groq.com/openai/v1"
+        )
+        self.model_name = model_name
+        logger.info(f"✅ {self.name} with Groq ({model_name})")
+
+    def _init_openai(self, model_name: str):
+        try:
+            from openai import OpenAI
+        except ImportError:
+            raise RuntimeError("openai not installed. Run: pip install openai")
+
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY not found")
+
+        self.model = OpenAI(api_key=api_key)
+        self.model_name = model_name
+        logger.info(f"✅ {self.name} with OpenAI ({model_name})")
+
+    def _init_kimi(self, model_name: str):
+        try:
+            from openai import OpenAI
+        except ImportError:
+            raise RuntimeError("openai not installed. Run: pip install openai")
+
+        api_key = os.getenv("KIMI_K2_KEY")
+        if not api_key:
+            raise ValueError("KIMI_K2_KEY not found")
+
+        self.model = OpenAI(
+            api_key=api_key,
+            base_url="https://api.moonshot.cn/v1"
+        )
+        self.model_name = model_name
+        logger.info(f"✅ {self.name} with Kimi ({model_name})")
