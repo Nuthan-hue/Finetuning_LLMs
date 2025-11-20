@@ -11,7 +11,7 @@ import json
 from typing import Dict, Any, Optional
 from pathlib import Path
 from .base_llm_agent import BaseLLMAgent
-from ...utils.ai_caller import generate_ai_response
+from src.utils.ai_caller import generate_ai_response
 
 logger = logging.getLogger(__name__)
 
