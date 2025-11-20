@@ -29,6 +29,7 @@ def scrape_kaggle_with_selenium(competition_name, output_dir=None):
         # Find description and evaluation sections
         description = ""
         evaluation = ""
+        data_ = ""
 
         try:
             desc_elem = driver.find_element(By.XPATH, '//*[@id="site-content"]/div[2]/div//div[contains(@id, "description")]')
@@ -42,17 +43,26 @@ def scrape_kaggle_with_selenium(competition_name, output_dir=None):
         except:
             print("❌ Evaluation section not found")
 
+        try:
+            data_elem = driver.find_element(By.XPATH, '//div[contains(@class, "sc-iNHxRi iA-dloL")]')
+            data_ = data_elem.text.strip()
+        except:
+            print("❌ Evaluation section not found")
+
         combined_text = f"--- Description ---\n{description}\n\n--- Evaluation ---\n{evaluation}"
 
         # Save to file if output_dir provided
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
-            output_file = os.path.join(output_dir, f"{competition_name}_overview.txt")
+            output_file_overview = os.path.join(output_dir, f"{competition_name}_overview.txt")
+            output_file_data = os.path.join(output_dir, f"{competition_name}_data.txt")
 
-            with open(output_file, "w", encoding="utf-8") as f:
+            with open(output_file_overview, "w", encoding="utf-8") as f:
                 f.write(combined_text)
+            with open(output_file_data, "w", encoding="utf-8") as f:
+                f.write(data_)
 
-            print(f"✅ Scraped and saved to: {output_file}")
+            print(f"✅ Scraped and saved to: {output_file_overview}")
 
         return combined_text
 

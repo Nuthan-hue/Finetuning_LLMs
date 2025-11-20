@@ -55,7 +55,7 @@ docker-compose*.yml
 *.md
 docs/
 README*
-CLAUDE.md
+docs/CLAUDE.md
 GETTING_STARTED.md
 
 # Testing

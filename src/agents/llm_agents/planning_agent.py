@@ -34,17 +34,17 @@ class PlanningAgent(BaseLLMAgent):
     async def create_plan(
         self,
         problem_understanding: Dict[str, Any],
-        dataset_info: Dict[str, Any],
-        competition_name: str
+        data_analysis: Dict[str, Any] = None,
+        dataset_info: Dict[str, Any] = None,
+        competition_name: str = None
     ) -> Dict[str, Any]:
         """
-        Create comprehensive execution plan based on problem understanding and raw dataset info.
-
-        This method does BOTH data analysis AND planning in one comprehensive step.
+        Create comprehensive execution plan based on problem understanding and data analysis.
 
         Args:
             problem_understanding: Output from ProblemUnderstandingAgent
-            dataset_info: Raw dataset information (from DataCollector analysis_report)
+            data_analysis: Output from DataAnalysisAgent (preferred)
+            dataset_info: Raw dataset information (legacy parameter, for backwards compatibility)
             competition_name: Name of the competition
 
         Returns:
@@ -109,12 +109,15 @@ class PlanningAgent(BaseLLMAgent):
                 ]
             }
         """
+        # Support both parameter names (data_analysis preferred, dataset_info for backwards compat)
+        analysis_data = data_analysis if data_analysis is not None else dataset_info
+
         logger.info(f"🧠 Creating comprehensive plan (data analysis + execution) for: {competition_name}")
 
         # Build comprehensive planning prompt (includes data analysis)
         prompt = self._build_planning_prompt(
             problem_understanding,
-            dataset_info,
+            analysis_data,
             competition_name
         )
 
