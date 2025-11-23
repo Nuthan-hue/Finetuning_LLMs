@@ -6,6 +6,7 @@ Tests the ProblemUnderstandingAgent's ability to analyze competition objectives.
 import asyncio
 import sys
 from pathlib import Path
+import pytest
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -19,7 +20,7 @@ class MockOrchestrator:
     def __init__(self):
         self.problem_understanding_agent = ProblemUnderstandingAgent()
 
-
+@pytest.mark.asyncio
 async def test_phase_2_problem_understanding():
     """
     Test Phase 2: Problem Understanding

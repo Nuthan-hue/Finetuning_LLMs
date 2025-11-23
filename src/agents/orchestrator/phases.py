@@ -35,38 +35,8 @@ async def run_data_collection(
     logger.info("PHASE 1: DATA COLLECTION")
     logger.info("=" * 70)
 
-    # Define competition-specific paths
     competition_name = context["competition_name"]
-    cache_dir = Path("data") / competition_name
-    cache_file = cache_dir / "phase1_data_collection.json"
-    data_dir = Path("data") / "raw" / competition_name
 
-    # FIRST: Check if data files already exist locally
-    if data_dir.exists() and cache_file.exists():
-        logger.info("⏭️  Phase 1 already completed - data files found locally")
-
-        # Load cached metadata
-        with open(cache_file, 'r') as f:
-            cached_data = json.load(f)
-
-        # Verify files still exist
-        files_exist = True
-        for file_info in cached_data.get("files", []):
-            file_path = Path(cached_data["data_path"]) / file_info["name"]
-            if not file_path.exists():
-                logger.warning(f"⚠️  Cached file missing: {file_path}")
-                files_exist = False
-                break
-
-        if files_exist:
-            context.update(cached_data)
-            logger.info(f"   Data path: {context['data_path']}")
-            logger.info(f"   Files: {len(context.get('files', []))}")
-            return context
-        else:
-            logger.warning("⚠️  Some cached files are missing, re-downloading...")
-
-    # If we reach here, need to download data
     logger.info(f"📥 Downloading data for competition: {competition_name}")
 
     collection_context = {
@@ -86,17 +56,8 @@ async def run_data_collection(
         "files": results.get("files", []),
     })
 
-    # Save to cache
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    with open(cache_file, 'w') as f:
-        json.dump({
-            "data_path": context["data_path"],
-            "files": context["files"]
-        }, f, indent=2)
-
     logger.info(f"✅ Data collected: {len(results.get('files', []))} files")
     logger.info(f"   Data path: {results['data_path']}")
-    logger.info(f"💾 Cached to: {cache_file}")
 
     return context
 
@@ -120,22 +81,7 @@ async def run_problem_understanding(
     logger.info("PHASE 2: PROBLEM UNDERSTANDING")
     logger.info("=" * 70)
 
-    # Define competition-specific cache file path
     competition_name = context["competition_name"]
-    cache_dir = Path("data") / competition_name
-    cache_file = cache_dir / "phase2_problem_understanding.json"
-
-    # Check if cached results exist
-    if cache_file.exists():
-        logger.info("⏭️  Phase 2 already completed - loading from cache")
-        with open(cache_file, 'r') as f:
-            cached_data = json.load(f)
-
-        context["problem_understanding"] = cached_data["problem_understanding"]
-        context["overview_text"] = cached_data["overview_text"]
-        logger.info(f"   Task: {context['problem_understanding'].get('competition_type', 'N/A')}")
-        logger.info(f"   Metric: {context['problem_understanding'].get('evaluation_metric', 'N/A')}")
-        return context
 
     # Initialize Problem Understanding Agent
     problem_agent = orchestrator.problem_understanding_agent
@@ -154,18 +100,9 @@ async def run_problem_understanding(
     context["problem_understanding"] = understanding
     context["overview_text"] = overview_text
 
-    # Save to cache
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    with open(cache_file, 'w') as f:
-        json.dump({
-            "problem_understanding": understanding,
-            "overview_text": overview_text
-        }, f, indent=2)
-
     logger.info("✅ Problem understanding completed")
     logger.info(f"   Task: {understanding.get('competition_type', 'N/A')}")
     logger.info(f"   Metric: {understanding.get('evaluation_metric', 'N/A')}")
-    logger.info(f"💾 Cached to: {cache_file}")
 
     return context
 
@@ -188,27 +125,7 @@ async def run_data_analysis(
     logger.info("PHASE 3: DATA ANALYSIS")
     logger.info("=" * 70)
 
-    # Define competition-specific cache file path
     competition_name = context["competition_name"]
-    cache_dir = Path("data") / competition_name
-    cache_file = cache_dir / "phase3_data_analysis.json"
-
-    # Check if cached results exist
-    if cache_file.exists():
-        logger.info("⏭️  Phase 3 already completed - loading from cache")
-        with open(cache_file, 'r') as f:
-            data_analysis = json.load(f)
-
-        # Add to context
-        context["data_analysis"] = data_analysis
-        context["needs_preprocessing"] = data_analysis.get("preprocessing_required", False)
-        context["target_column"] = data_analysis.get("target_column")
-        context["data_files"] = data_analysis.get("data_files", {})
-
-        logger.info(f"   Data modality: {data_analysis.get('data_modality')}")
-        logger.info(f"   Target column: {context.get('target_column')}")
-        logger.info(f"   File mapping: train={context['data_files'].get('train_file')}, test={context['data_files'].get('test_file')}")
-        return context
 
     # Initialize Data Analysis Agent
     data_agent = DataAnalysisAgent()
@@ -225,11 +142,6 @@ async def run_data_analysis(
     logger.info(f"✅ Target column: {data_analysis.get('target_column')}")
     logger.info(f"✅ Preprocessing required: {data_analysis.get('preprocessing_required')}")
 
-    # Save to cache
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    with open(cache_file, 'w') as f:
-        json.dump(data_analysis, f, indent=2)
-
     # Add to context
     context["data_analysis"] = data_analysis
     context["needs_preprocessing"] = data_analysis.get("preprocessing_required", False)
@@ -240,7 +152,6 @@ async def run_data_analysis(
     # Extract file mapping (NO HARDCODED NAMES!)
     context["data_files"] = data_analysis.get("data_files", {})
     logger.info(f"📁 File mapping: train={context['data_files'].get('train_file')}, test={context['data_files'].get('test_file')}")
-    logger.info(f"💾 Cached to: {cache_file}")
 
     # Log key insights
     if "key_insights" in data_analysis:

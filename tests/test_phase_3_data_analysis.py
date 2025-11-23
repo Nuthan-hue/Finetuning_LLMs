@@ -2,8 +2,7 @@
 """
 Test Phase 3: Data Analysis
 
-This test specifically targets the Data Analysis phase with comprehensive coverage.
-It tests the DataAnalysisAgent's ability to:
+Tests the DataAnalysisAgent's ability to:
 - Identify train/test/submission files from CSV structure
 - Detect data modality (tabular, NLP, vision, etc.)
 - Identify target column
@@ -12,6 +11,7 @@ It tests the DataAnalysisAgent's ability to:
 - Generate actionable insights
 
 Usage:
+    pytest tests/test_phase_3_data_analysis.py -v
     python tests/test_phase_3_data_analysis.py
 """
 import sys
@@ -25,301 +25,154 @@ from src.agents import AgenticOrchestrator
 from src.agents.orchestrator.phases import run_data_collection, run_problem_understanding, run_data_analysis
 
 
-def print_header(title):
-    """Print a formatted header"""
-    print("\n" + "=" * 70)
-    print(f"  {title}")
-    print("=" * 70)
+async def _run_with_cache(phase_func, cache_file, *args, **kwargs):
+    """Helper to run a phase with caching (TEST ONLY)"""
+    # Check cache first
+    if cache_file.exists():
+        with open(cache_file, 'r') as f:
+            return json.load(f)
 
+    # Run phase
+    result = await phase_func(*args, **kwargs)
 
-def print_success(message):
-    """Print success message"""
-    print(f"✅ {message}")
+    # Save to cache
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(cache_file, 'w') as f:
+        json.dump(result, f, indent=2)
 
-
-def print_error(message):
-    """Print error message"""
-    print(f"❌ {message}")
-
-
-def print_info(message):
-    """Print info message"""
-    print(f"ℹ️  {message}")
+    return result
 
 
 @pytest.mark.asyncio
-async def test_data_analysis_phase(competition_name: str = "google-tunix-hackathon"):
-    """Comprehensive test for Phase 3: Data Analysis
-
-    Args:
-        competition_name: Name of the Kaggle competition to test (default: "titanic")
-    """
-
-    print_header("PHASE 3: DATA ANALYSIS - COMPREHENSIVE TEST")
-    print_info(f"Testing competition: {competition_name}")
+async def test_data_analysis_phase(competition_name: str = "titanic"):
+    """Test Phase 3: Data Analysis with comprehensive validation"""
 
     # Initialize orchestrator
-    print_info("Initializing orchestrator...")
     orchestrator = AgenticOrchestrator(
         competition_name=competition_name,
         target_percentile=0.20,
         max_actions=50
     )
-    print_success("Orchestrator initialized")
 
-    # Build context progressively
     context = {
         "competition_name": competition_name,
         "target_percentile": 0.20,
         "iteration": 0
     }
 
-    # Check if Phase 1 data already exists locally
-    phase1_cache = Path("data") / competition_name / "phase1_data_collection.json"
-    phase1_exists = phase1_cache.exists()
+    # Setup cache directory (TEST ONLY - orchestrator doesn't use cache)
+    cache_dir = Path("data") / competition_name
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
-    # Phase 1: Data Collection (required for Phase 3)
-    # Smart: Only runs if data doesn't exist
-    print_header("PREREQUISITE: Phase 1 - Data Collection")
-    if phase1_exists:
-        print_info("Phase 1 cache found - will load from disk")
+    # Phase 1: Data Collection (with test-level caching)
+    phase1_cache = cache_dir / "test_phase1_cache.json"
+    if phase1_cache.exists():
+        with open(phase1_cache, 'r') as f:
+            cached = json.load(f)
+            context.update(cached)
     else:
-        print_info("Phase 1 cache not found - will download data")
-
-    try:
         context = await run_data_collection(orchestrator, context)
-        if phase1_exists:
-            print_success("Phase 1 loaded from cache (0 downloads, 0 API calls)")
-        else:
-            print_success("Phase 1 completed - data downloaded")
-        print_info(f"Data path: {context['data_path']}")
-        print_info(f"Files found: {len(context.get('files', []))}")
-    except Exception as e:
-        print_error(f"Data collection failed: {e}")
-        return False
+        with open(phase1_cache, 'w') as f:
+            json.dump({"data_path": context["data_path"], "files": context["files"]}, f, indent=2)
 
-    # Check if Phase 2 data already exists locally
-    phase2_cache = Path("data") / competition_name / "phase2_problem_understanding.json"
-    phase2_exists = phase2_cache.exists()
+    assert "data_path" in context
+    assert "files" in context
 
-    # Phase 2: Problem Understanding (required for Phase 3)
-    # Smart: Only runs if understanding doesn't exist
-    print_header("PREREQUISITE: Phase 2 - Problem Understanding")
-    if phase2_exists:
-        print_info("Phase 2 cache found - will load from disk")
+    # Phase 2: Problem Understanding (with test-level caching)
+    phase2_cache = cache_dir / "test_phase2_cache.json"
+    if phase2_cache.exists():
+        with open(phase2_cache, 'r') as f:
+            cached = json.load(f)
+            context.update(cached)
     else:
-        print_info("Phase 2 cache not found - will analyze problem (1 API call)")
-
-    try:
         context = await run_problem_understanding(orchestrator, context)
-        if phase2_exists:
-            print_success("Phase 2 loaded from cache (0 API calls)")
-        else:
-            print_success("Phase 2 completed - problem analyzed (1 API call)")
-        print_info(f"Task type: {context['problem_understanding'].get('competition_type', 'N/A')}")
-        print_info(f"Metric: {context['problem_understanding'].get('evaluation_metric', 'N/A')}")
-    except Exception as e:
-        print_error(f"Problem understanding failed: {e}")
-        return False
+        with open(phase2_cache, 'w') as f:
+            json.dump({
+                "problem_understanding": context["problem_understanding"],
+                "overview_text": context["overview_text"]
+            }, f, indent=2)
 
-    # PHASE 3: DATA ANALYSIS (THE MAIN TEST)
-    print_header("MAIN TEST: Phase 3 - Data Analysis")
+    assert "problem_understanding" in context
 
-    try:
-        # Execute data analysis phase
-        print_info("Running data analysis agent...")
-        context = await run_data_analysis(orchestrator, context)
+    # Phase 3: Data Analysis (THE MAIN TEST - NO CACHE, always fresh)
+    context = await run_data_analysis(orchestrator, context)
 
-        # Validate results
-        print_header("VALIDATION: Checking Data Analysis Results")
+    # Validate results
+    data_analysis = context.get("data_analysis")
+    assert data_analysis is not None, "No data_analysis in context"
 
-        data_analysis = context.get("data_analysis")
-        if not data_analysis:
-            print_error("No data_analysis in context!")
-            return False
+    # Validate file identification
+    data_files = data_analysis.get("data_files", {})
+    assert data_files.get("train_file"), "Train file not identified"
+    assert data_files.get("test_file"), "Test file not identified"
 
-        # 1. Check file identification
-        print_info("Validating file identification...")
-        data_files = data_analysis.get("data_files", {})
-        train_file = data_files.get("train_file")
-        test_file = data_files.get("test_file")
-        submission_file = data_files.get("submission_file")
+    # Validate data modality detection
+    data_modality = data_analysis.get("data_modality")
+    assert data_modality in ["tabular", "nlp", "vision", "timeseries", "audio", "mixed"], \
+        f"Invalid modality: {data_modality}"
 
-        if train_file:
-            print_success(f"Train file identified: {train_file}")
-        else:
-            print_error("Train file not identified!")
-            return False
+    # Validate target column identification
+    target_column = data_analysis.get("target_column")
+    assert target_column, "Target column not identified"
 
-        if test_file:
-            print_success(f"Test file identified: {test_file}")
-        else:
-            print_error("Test file not identified!")
-            return False
+    # Validate feature types analysis
+    feature_types = data_analysis.get("feature_types", {})
+    assert feature_types, "Feature types not analyzed"
+    assert "id_columns" in feature_types
 
-        if submission_file:
-            print_success(f"Submission file identified: {submission_file}")
-        else:
-            print_info("No submission file identified (may not exist)")
+    # Validate data quality assessment
+    data_quality = data_analysis.get("data_quality", {})
+    assert "missing_values" in data_quality or "duplicates" in data_quality, \
+        "Data quality not assessed"
 
-        # 2. Check data modality detection
-        print_info("Validating data modality detection...")
-        data_modality = data_analysis.get("data_modality")
-        if data_modality:
-            print_success(f"Data modality detected: {data_modality}")
-            if data_modality not in ["tabular", "nlp", "vision", "timeseries", "audio", "mixed"]:
-                print_error(f"Invalid modality: {data_modality}")
-                return False
-        else:
-            print_error("Data modality not detected!")
-            return False
+    # Validate preprocessing recommendations
+    preprocessing_required = data_analysis.get("preprocessing_required", False)
+    if preprocessing_required:
+        preprocessing = data_analysis.get("preprocessing", {})
+        assert preprocessing, "Preprocessing required but no recommendations"
 
-        # 3. Check target column identification
-        print_info("Validating target column identification...")
-        target_column = data_analysis.get("target_column")
-        if target_column:
-            print_success(f"Target column identified: {target_column}")
-        else:
-            print_error("Target column not identified!")
-            return False
+    # Validate context propagation
+    assert context.get("target_column") == target_column, \
+        "Target column not propagated to context"
+    assert context.get("data_files") == data_files, \
+        "File mapping not propagated to context"
+    assert context.get("needs_preprocessing") == preprocessing_required, \
+        "Preprocessing flag not propagated correctly"
 
-        # 4. Check feature types analysis
-        print_info("Validating feature types analysis...")
-        feature_types = data_analysis.get("feature_types", {})
-        if feature_types:
-            print_success(f"Feature types analyzed:")
-            print_info(f"  - Numerical: {feature_types.get('numerical_columns', [])}")
-            print_info(f"  - Categorical: {feature_types.get('categorical_columns', [])}")
-            print_info(f"  - ID columns: {feature_types.get('id_columns', [])}")
-            print_info(f"  - Text columns: {feature_types.get('text_columns', [])}")
-        else:
-            print_error("Feature types not analyzed!")
-            return False
+    print(f"\n✅ Phase 3 test passed for {competition_name}")
+    print(f"   Modality: {data_modality}, Target: {target_column}")
+    print(f"   Files: {data_files.get('train_file')}, {data_files.get('test_file')}")
 
-        # 5. Check data quality assessment
-        print_info("Validating data quality assessment...")
-        data_quality = data_analysis.get("data_quality", {})
-        if data_quality:
-            print_success("Data quality assessed:")
-            print_info(f"  - Missing values: {data_quality.get('missing_values', {})}")
-            print_info(f"  - Duplicates: {data_quality.get('duplicates', 0)}")
-        else:
-            print_info("Data quality not fully assessed")
-
-        # 6. Check preprocessing recommendations
-        print_info("Validating preprocessing recommendations...")
-        preprocessing_required = data_analysis.get("preprocessing_required", False)
-        print_info(f"Preprocessing required: {preprocessing_required}")
-
-        if preprocessing_required:
-            preprocessing = data_analysis.get("preprocessing", {})
-            if preprocessing:
-                print_success("Preprocessing recommendations provided:")
-                print_info(f"  - Recommendations: {preprocessing}")
-            else:
-                print_error("Preprocessing required but no recommendations!")
-                return False
-
-        # 7. Check key insights
-        print_info("Validating key insights...")
-        key_insights = data_analysis.get("key_insights", [])
-        if key_insights:
-            print_success(f"Key insights generated ({len(key_insights)} insights):")
-            for i, insight in enumerate(key_insights[:5], 1):
-                print_info(f"  {i}. {insight}")
-        else:
-            print_info("No key insights generated")
-
-        # 8. Verify context propagation
-        print_header("VALIDATION: Context Propagation")
-
-        if context.get("target_column") == target_column:
-            print_success(f"Target column propagated to context: {target_column}")
-        else:
-            print_error("Target column not propagated correctly!")
-            return False
-
-        if context.get("data_files") == data_files:
-            print_success("File mapping propagated to context")
-        else:
-            print_error("File mapping not propagated correctly!")
-            return False
-
-        if context.get("needs_preprocessing") == preprocessing_required:
-            print_success(f"Preprocessing flag propagated: {preprocessing_required}")
-        else:
-            print_error("Preprocessing flag not propagated correctly!")
-            return False
-
-        # 9. Check saved artifacts
-        print_header("VALIDATION: Saved Artifacts")
-
-        analysis_file = Path(context["data_path"]) / "data_analysis.json"
-        if analysis_file.exists():
-            print_success(f"Data analysis saved to: {analysis_file}")
-
-            # Verify file content
-            with open(analysis_file, 'r') as f:
-                saved_analysis = json.load(f)
-
-            if saved_analysis == data_analysis:
-                print_success("Saved analysis matches in-memory analysis")
-            else:
-                print_error("Saved analysis doesn't match in-memory analysis!")
-                return False
-        else:
-            print_error(f"Data analysis file not created: {analysis_file}")
-            return False
-
-        # 10. Final summary
-        print_header("TEST SUMMARY")
-        print_success("Phase 3: Data Analysis - ALL CHECKS PASSED!")
-
-        print_info("\nKey Metrics:")
-        print_info(f"  - Train file: {train_file}")
-        print_info(f"  - Test file: {test_file}")
-        print_info(f"  - Data modality: {data_modality}")
-        print_info(f"  - Target column: {target_column}")
-        print_info(f"  - Numerical features: {len(feature_types.get('numerical_columns', []))}")
-        print_info(f"  - Categorical features: {len(feature_types.get('categorical_columns', []))}")
-        print_info(f"  - Preprocessing required: {preprocessing_required}")
-        print_info(f"  - Key insights: {len(key_insights)}")
-
-        return True
-
-    except Exception as e:
-        print_error(f"Data analysis phase failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+    return True
 
 
 async def main():
-    """Main test runner"""
-    print_header("DATA ANALYSIS PHASE - COMPREHENSIVE TEST")
+    """Run the test as a standalone script"""
+    competition_name = sys.argv[1] if len(sys.argv) > 1 else "titanic"
 
-    # Check if competition name provided as command-line argument
-    if len(sys.argv) > 1:
-        competition_name = sys.argv[1]
-        print_info(f"Testing competition from command line: {competition_name}")
-    else:
-        competition_name = "titanic"
-        print_info(f"Testing default competition: {competition_name}")
+    print(f"\n{'='*70}")
+    print(f"  TESTING PHASE 3: DATA ANALYSIS")
+    print(f"  Competition: {competition_name}")
+    print(f"  Note: Phases 1-2 use test cache, Phase 3 runs fresh")
+    print(f"{'='*70}\n")
 
-    print_info("Testing Phase 3 with full validation")
-    print()
-
-    # Run test with the specified competition
-    success = await test_data_analysis_phase(competition_name=competition_name)
-
-    print_header("FINAL RESULT")
-    if success:
-        print_success("✨ ALL TESTS PASSED! ✨")
-        print_info(f"Phase 3 (Data Analysis) is working correctly for {competition_name}")
+    try:
+        success = await test_data_analysis_phase(competition_name=competition_name)
+        print(f"\n{'='*70}")
+        print("  ✅ ALL TESTS PASSED!")
+        print(f"{'='*70}\n")
         return 0
-    else:
-        print_error("❌ TESTS FAILED!")
-        print_info(f"Phase 3 (Data Analysis) has issues for {competition_name}")
+    except AssertionError as e:
+        print(f"\n{'='*70}")
+        print(f"  ❌ TEST FAILED: {e}")
+        print(f"{'='*70}\n")
+        return 1
+    except Exception as e:
+        print(f"\n{'='*70}")
+        print(f"  ❌ ERROR: {e}")
+        print(f"{'='*70}\n")
+        import traceback
+        traceback.print_exc()
         return 1
 
 

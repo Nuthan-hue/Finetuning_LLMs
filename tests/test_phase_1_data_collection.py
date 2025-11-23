@@ -6,6 +6,7 @@ Tests the DataCollector agent's ability to fetch and analyze Kaggle competition 
 import asyncio
 import sys
 from pathlib import Path
+import pytest
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -19,7 +20,7 @@ class MockOrchestrator:
     def __init__(self):
         self.data_collector = DataCollector()
 
-
+@pytest.mark.asyncio
 async def test_phase_1_data_collection():
     """
     Test Phase 1: Data Collection

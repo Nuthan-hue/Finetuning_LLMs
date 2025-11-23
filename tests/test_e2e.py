@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 import logging
 import json
+import pytest
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -44,6 +45,7 @@ class MockOrchestrator:
         self.iteration = 1
 
 
+@pytest.mark.asyncio
 async def test_phases_1_to_7():
     """
     End-to-end integration test for Phases 1-7
