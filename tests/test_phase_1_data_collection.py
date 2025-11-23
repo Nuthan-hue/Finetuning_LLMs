@@ -5,6 +5,7 @@ Tests the DataCollector agent's ability to fetch and analyze Kaggle competition 
 """
 import asyncio
 import sys
+import json
 from pathlib import Path
 import pytest
 
@@ -20,55 +21,62 @@ class MockOrchestrator:
     def __init__(self):
         self.data_collector = DataCollector()
 
+
 @pytest.mark.asyncio
-async def test_phase_1_data_collection():
-    """
-    Test Phase 1: Data Collection
+async def test_phase_1_data_collection(competition_name: str = "titanic"):
+    """Test Phase 1: Data Collection"""
 
-    Tests:
-    - Download competition data from Kaggle
-    - Identify available files
-    - Basic data analysis
-    - Context propagation
-    """
-    print("\n" + "=" * 70)
-    print("PHASE 1: DATA COLLECTION - TEST")
-    print("=" * 70)
+    # Setup cache in test/
+    cache_file = Path("data") / competition_name / "test" / "test_phase1_cache.json"
 
-    orchestrator = MockOrchestrator()
-    context = {
-        "competition_name": "titanic"
-    }
+    # Check if we already have this data
+    if cache_file.exists():
+        print("Already has this data")
+        with open(cache_file, 'r') as f:
+            context = json.load(f)
 
-    try:
-        print("\n📦 Running Phase 1: Data Collection...")
-        context = await run_data_collection(orchestrator, context)
+        # Assertions
+        assert "data_path" in context
+        assert "files" in context
+        assert Path(context["data_path"]).exists()
 
-        # Validate outputs
-        assert "data_path" in context, "Missing data_path in context"
-        assert "files" in context, "Missing files in context"
-        assert Path(context["data_path"]).exists(), f"Data path doesn't exist: {context['data_path']}"
-
-        print("\n✅ Phase 1 PASSED")
-        print(f"   Data path: {context['data_path']}")
-        print(f"   Files found: {len(context['files'])}")
-        for file_info in context['files']:
-            print(f"     - {file_info['name']} ({file_info.get('size', 'N/A')})")
-
+        print(f"✅ Phase 1 passed (cached)")
         return True
 
-    except Exception as e:
-        print(f"\n❌ Phase 1 FAILED: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+    # No cache - run data collection
+    orchestrator = MockOrchestrator()
+    context = {"competition_name": competition_name}
+
+    context = await run_data_collection(orchestrator, context)
+
+    # Assertions
+    assert "data_path" in context
+    assert "files" in context
+    assert Path(context["data_path"]).exists()
+
+    # Save cache
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(cache_file, 'w') as f:
+        json.dump({"data_path": context["data_path"], "files": context["files"]}, f, indent=2)
+
+    print(f"✅ Phase 1 passed")
+    return True
 
 
 async def main():
     """Run Phase 1 test"""
-    success = await test_phase_1_data_collection()
-    sys.exit(0 if success else 1)
+    competition_name = sys.argv[1] if len(sys.argv) > 1 else "titanic"
+
+    try:
+        await test_phase_1_data_collection(competition_name)
+        print("✅ TEST PASSED")
+        return 0
+    except Exception as e:
+        print(f"❌ TEST FAILED: {e}")
+        import traceback
+        traceback.print_exc()
+        return 1
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    sys.exit(asyncio.run(main()))

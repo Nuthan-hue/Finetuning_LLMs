@@ -11,7 +11,6 @@ import sys
 
 from ..base import AgentState
 from ..llm_agents import ProblemUnderstandingAgent, DataAnalysisAgent, PlanningAgent, PreprocessingAgent
-from scripts.save_phase_output import save_phase_cache, load_phase_cache, cache_exists
 
 logger = logging.getLogger(__name__)
 
@@ -206,8 +205,9 @@ async def run_preprocessing(
 
     logger.info(f"✅ Generated {len(preprocessing_code)} chars of preprocessing code")
 
-    # Save the generated code to file
-    preprocessing_file = Path(context["data_path"]) / "preprocessing.py"
+    # Save preprocessing code to raw folder
+    data_path = Path(context["data_path"])
+    preprocessing_file = data_path / "preprocessing.py"
     preprocessing_file.write_text(preprocessing_code)
     logger.info(f"💾 Saved preprocessing code to: {preprocessing_file}")
 
@@ -215,7 +215,6 @@ async def run_preprocessing(
     logger.info("⚙️  Executing preprocessing code...")
 
     try:
-
         # Create a namespace for execution with necessary variables
         namespace = {
             "data_path": context["data_path"],
@@ -228,7 +227,6 @@ async def run_preprocessing(
         # Execute the code
         exec(preprocessing_code, namespace)
 
-
         # Call the preprocess_data function
         if "preprocess_data" not in namespace:
             raise RuntimeError("Generated code missing 'preprocess_data' function")
@@ -236,17 +234,16 @@ async def run_preprocessing(
         preprocess_func = namespace["preprocess_data"]
         result = preprocess_func(context["data_path"])
 
-
         logger.info(f"✅ Preprocessing completed")
         logger.info(f"   Train shape: {result.get('train_shape')}")
         logger.info(f"   Test shape: {result.get('test_shape')}")
         logger.info(f"   Columns: {len(result.get('columns', []))}")
         logger.info(f"   Missing values remaining: {result.get('missing_values_remaining', 0)}")
 
-        # Update context with clean data path
-        clean_data_path = Path(context["data_path"]) / "clean_train.csv"
-        if clean_data_path.exists():
-            context["clean_data_path"] = str(Path(context["data_path"]))
+        # Update context - clean files saved in same raw/ folder
+        clean_train_path = data_path / "clean_train.csv"
+        if clean_train_path.exists():
+            context["clean_data_path"] = context["data_path"]
             context["preprocessing_result"] = result
         else:
             raise RuntimeError("Preprocessing did not create clean_train.csv")
@@ -360,9 +357,16 @@ async def run_feature_engineering(
 
     logger.info(f"✅ Generated {len(feature_code)} chars of feature engineering code")
 
-    # Save the generated code to file
-    data_path = Path(context.get("clean_data_path", context["data_path"]))
-    feature_file = data_path / "feature_engineering.py"
+    # Setup featured data directory: data/{competition}/featured/
+    competition_name = context["competition_name"]
+    data_base = Path("data") / competition_name
+    featured_dir = data_base / "featured"
+    featured_dir.mkdir(parents=True, exist_ok=True)
+    metadata_dir = data_base / "metadata"
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save the generated code to metadata folder
+    feature_file = metadata_dir / "feature_engineering.py"
     feature_file.write_text(feature_code)
     logger.info(f"💾 Saved feature engineering code to: {feature_file}")
 
@@ -381,7 +385,8 @@ async def run_feature_engineering(
             raise RuntimeError("Generated code missing 'engineer_features' function")
 
         engineer_func = namespace["engineer_features"]
-        result = engineer_func(str(data_path))
+        clean_data_path = context.get("clean_data_path", context["data_path"])
+        result = engineer_func(clean_data_path, str(featured_dir))
 
         logger.info(f"✅ Feature engineering completed")
         logger.info(f"   Train shape: {result.get('train_shape')}")
@@ -391,9 +396,9 @@ async def run_feature_engineering(
         logger.info(f"   Features added: {result.get('features_added', 0)}")
 
         # Update context with featured data path
-        featured_train = data_path / "featured_train.csv"
+        featured_train = featured_dir / "featured_train.csv"
         if featured_train.exists():
-            context["featured_data_path"] = str(data_path)
+            context["featured_data_path"] = str(featured_dir)
             context["feature_engineering_result"] = result
         else:
             raise RuntimeError("Feature engineering did not create featured_train.csv")

@@ -85,6 +85,18 @@ class DataCollector(BaseAgent):
                 self.kaggle_config_dir
             )
             self.results["data_path"] = str(data_path)
+
+            # List downloaded files
+            files = []
+            if data_path.exists():
+                for file_path in data_path.iterdir():
+                    if file_path.is_file():
+                        files.append({
+                            "name": file_path.name,
+                            "size": file_path.stat().st_size
+                        })
+            self.results["files"] = files
+
             return self.results
 
         except Exception as e:

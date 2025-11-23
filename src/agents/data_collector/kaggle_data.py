@@ -34,8 +34,8 @@ async def download_competition_data(
     logger.info(f"Downloading competition data: {competition_name}")
 
     try:
-        # Set up output directory
-        output_dir = data_dir / "raw" / competition_name
+        # Set up output directory: data/{competition}/raw/
+        output_dir = data_dir / competition_name / "raw"
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Download competition files

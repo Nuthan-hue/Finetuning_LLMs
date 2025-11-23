@@ -60,12 +60,12 @@ async def test_data_analysis_phase(competition_name: str = "titanic"):
         "iteration": 0
     }
 
-    # Setup cache directory (TEST ONLY - orchestrator doesn't use cache)
-    cache_dir = Path("data") / competition_name
-    cache_dir.mkdir(parents=True, exist_ok=True)
+    # Setup test cache directory
+    test_cache_dir = Path("data") / competition_name / "test"
+    test_cache_dir.mkdir(parents=True, exist_ok=True)
 
     # Phase 1: Data Collection (with test-level caching)
-    phase1_cache = cache_dir / "test_phase1_cache.json"
+    phase1_cache = test_cache_dir / "test_phase1_cache.json"
     if phase1_cache.exists():
         with open(phase1_cache, 'r') as f:
             cached = json.load(f)
@@ -79,7 +79,7 @@ async def test_data_analysis_phase(competition_name: str = "titanic"):
     assert "files" in context
 
     # Phase 2: Problem Understanding (with test-level caching)
-    phase2_cache = cache_dir / "test_phase2_cache.json"
+    phase2_cache = test_cache_dir / "test_phase2_cache.json"
     if phase2_cache.exists():
         with open(phase2_cache, 'r') as f:
             cached = json.load(f)
