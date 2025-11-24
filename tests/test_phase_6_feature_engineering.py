@@ -7,6 +7,7 @@ import asyncio
 import sys
 import json
 from pathlib import Path
+import pytest
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -19,7 +20,7 @@ class MockOrchestrator:
     def __init__(self):
         pass
 
-
+@pytest.mark.asyncio
 async def test_phase_6_feature_engineering(competition_name: str = "titanic"):
     """
     Test Phase 6: Feature Engineering

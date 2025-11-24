@@ -8,13 +8,13 @@ import asyncio
 import sys
 import json
 from pathlib import Path
-
+import pytest
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.agents.llm_agents.feature_engineering_agent import FeatureEngineeringAgent
 
-
+@pytest.mark.asyncio
 async def test_feature_engineering():
     """Test FeatureEngineeringAgent code generation"""
 

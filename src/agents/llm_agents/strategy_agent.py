@@ -107,8 +107,10 @@ Respond with JSON:
             logger.info(f"🤖 Requesting strategy from AI (iteration {iteration})...")
             response_text = generate_ai_response(self.model, prompt)
 
-            # Parse JSON response
+            # Parse JSON response with robust extraction
             cleaned = response_text.strip()
+
+            # Remove markdown code blocks
             if cleaned.startswith("```json"):
                 cleaned = cleaned[7:]
             if cleaned.startswith("```"):
@@ -117,16 +119,29 @@ Respond with JSON:
                 cleaned = cleaned[:-3]
             cleaned = cleaned.strip()
 
-            strategy = json.loads(cleaned)
+            # Extract JSON from text (handle AI adding explanation after JSON)
+            # Find the first { and last } to extract only the JSON part
+            import re
+            json_match = re.search(r'\{.*\}', cleaned, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+            else:
+                json_str = cleaned
+
+            strategy = json.loads(json_str)
 
             # Ensure required fields
             if "action" not in strategy:
                 logger.warning("Strategy missing 'action', using fallback")
                 return self._fallback_strategy(current_model, tried_models, gap)
 
-            logger.info(f"AI Strategy: {strategy['action']} - {strategy.get('reasoning', 'No reasoning')}")
+            logger.info(f"✅ AI Strategy: {strategy['action']} - {strategy.get('reasoning', 'No reasoning')[:100]}...")
             return strategy
 
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parsing error: {e}")
+            logger.debug(f"Raw AI response (first 500 chars): {response_text[:500]}")
+            return self._fallback_strategy(current_model, tried_models, gap)
         except Exception as e:
             logger.error(f"Error in strategy selection: {e}, using fallback")
             return self._fallback_strategy(current_model, tried_models, gap)

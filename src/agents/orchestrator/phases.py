@@ -502,6 +502,7 @@ async def run_model_training(
         "target_column": context["target_column"],
         "execution_plan": execution_plan,  # ← PASS EXECUTION PLAN!
         "data_analysis": context["data_analysis"],
+        "ai_analysis": context["data_analysis"],  # Model trainer expects this key
         "competition_name": context["competition_name"],
     }
 
@@ -606,7 +607,7 @@ async def run_submission(
 
     # Add to context
     context.update({
-        "submission_file": results.get("submission_file"),
+        "submission_file": results.get("submission_path"),  # Submitter returns "submission_path"
         "submission_id": results.get("submission_id"),
         "leaderboard_score": results.get("leaderboard_score")
     })
