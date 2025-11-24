@@ -25,22 +25,28 @@ def parse_leaderboard(output: str) -> Dict[str, Any]:
         "total_teams": 0
     }
 
-    # Skip header lines
-    data_lines = [line for line in lines if line and not line.startswith('teamId')]
+    # Skip header and separator lines
+    data_lines = []
+    for line in lines:
+        if line and not line.startswith('teamId') and not line.startswith('---'):
+            data_lines.append(line)
 
     for line in data_lines:
-        # Parse each line (format: teamId,teamName,submissionDate,score)
-        parts = line.split(',')
+        # Split by whitespace (Kaggle output is space-delimited, not comma-delimited)
+        # Format: teamId  teamName  submissionDate  score
+        parts = line.split()
         if len(parts) >= 4:
             entry = {
                 "team_id": parts[0].strip(),
                 "team_name": parts[1].strip(),
-                "submission_date": parts[2].strip(),
-                "score": parse_score(parts[3].strip())
+                "submission_date": f"{parts[2]} {parts[3]}" if len(parts) > 3 else parts[2],  # Date + time
+                "score": parse_score(parts[-1].strip())  # Last column is score
             }
             leaderboard["entries"].append(entry)
+            logger.debug(f"Parsed leaderboard entry: Rank {len(leaderboard['entries'])} - {entry['team_name']} - Score: {entry['score']}")
 
     leaderboard["total_teams"] = len(leaderboard["entries"])
+    logger.info(f"Parsed leaderboard with {leaderboard['total_teams']} teams")
 
     return leaderboard
 
@@ -58,21 +64,29 @@ def parse_submissions(output: str) -> List[Dict[str, Any]]:
     lines = output.strip().split('\n')
     submissions = []
 
-    # Skip header
-    data_lines = [line for line in lines if line and not line.startswith('fileName')]
+    # Skip header and separator lines
+    data_lines = []
+    for line in lines:
+        if line and not line.startswith('fileName') and not line.startswith('---'):
+            data_lines.append(line)
 
     for line in data_lines:
-        parts = line.split(',')
-        if len(parts) >= 4:
+        # Split by whitespace (Kaggle output is space-delimited, not comma-delimited)
+        parts = line.split()
+        if len(parts) >= 5:  # Need at least: fileName, date, time, status, publicScore
+            # Kaggle format: fileName  date  time  description  status  publicScore
+            # Handle case where description might be missing or multiple words
             submission = {
                 "fileName": parts[0].strip(),
-                "date": parts[1].strip(),
-                "description": parts[2].strip() if len(parts) > 2 else "",
-                "status": parts[3].strip() if len(parts) > 3 else "",
-                "publicScore": parse_score(parts[4].strip()) if len(parts) > 4 else None
+                "date": f"{parts[1]} {parts[2]}",  # Combine date and time
+                "publicScore": parse_score(parts[-1].strip()) if parts[-1] else None,  # Last column is publicScore
+                "status": parts[-2].strip() if len(parts) > 4 else "",  # Second to last is status
+                "description": " ".join(parts[3:-2]) if len(parts) > 5 else "",  # Everything in between
             }
             submissions.append(submission)
+            logger.debug(f"Parsed submission: {submission['fileName']} - Score: {submission['publicScore']}")
 
+    logger.info(f"Parsed {len(submissions)} submissions")
     return submissions
 
 

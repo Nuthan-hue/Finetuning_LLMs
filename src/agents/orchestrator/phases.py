@@ -11,7 +11,6 @@ import sys
 
 from ..base import AgentState
 from ..llm_agents import ProblemUnderstandingAgent, DataAnalysisAgent, PlanningAgent, PreprocessingAgent
-from scripts.save_phase_output import save_phase_cache, load_phase_cache, cache_exists
 
 logger = logging.getLogger(__name__)
 
@@ -35,38 +34,8 @@ async def run_data_collection(
     logger.info("PHASE 1: DATA COLLECTION")
     logger.info("=" * 70)
 
-    # Define competition-specific paths
     competition_name = context["competition_name"]
-    cache_dir = Path("data") / competition_name
-    cache_file = cache_dir / "phase1_data_collection.json"
-    data_dir = Path("data") / "raw" / competition_name
 
-    # FIRST: Check if data files already exist locally
-    if data_dir.exists() and cache_file.exists():
-        logger.info("⏭️  Phase 1 already completed - data files found locally")
-
-        # Load cached metadata
-        with open(cache_file, 'r') as f:
-            cached_data = json.load(f)
-
-        # Verify files still exist
-        files_exist = True
-        for file_info in cached_data.get("files", []):
-            file_path = Path(cached_data["data_path"]) / file_info["name"]
-            if not file_path.exists():
-                logger.warning(f"⚠️  Cached file missing: {file_path}")
-                files_exist = False
-                break
-
-        if files_exist:
-            context.update(cached_data)
-            logger.info(f"   Data path: {context['data_path']}")
-            logger.info(f"   Files: {len(context.get('files', []))}")
-            return context
-        else:
-            logger.warning("⚠️  Some cached files are missing, re-downloading...")
-
-    # If we reach here, need to download data
     logger.info(f"📥 Downloading data for competition: {competition_name}")
 
     collection_context = {
@@ -86,17 +55,8 @@ async def run_data_collection(
         "files": results.get("files", []),
     })
 
-    # Save to cache
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    with open(cache_file, 'w') as f:
-        json.dump({
-            "data_path": context["data_path"],
-            "files": context["files"]
-        }, f, indent=2)
-
     logger.info(f"✅ Data collected: {len(results.get('files', []))} files")
     logger.info(f"   Data path: {results['data_path']}")
-    logger.info(f"💾 Cached to: {cache_file}")
 
     return context
 
@@ -120,22 +80,7 @@ async def run_problem_understanding(
     logger.info("PHASE 2: PROBLEM UNDERSTANDING")
     logger.info("=" * 70)
 
-    # Define competition-specific cache file path
     competition_name = context["competition_name"]
-    cache_dir = Path("data") / competition_name
-    cache_file = cache_dir / "phase2_problem_understanding.json"
-
-    # Check if cached results exist
-    if cache_file.exists():
-        logger.info("⏭️  Phase 2 already completed - loading from cache")
-        with open(cache_file, 'r') as f:
-            cached_data = json.load(f)
-
-        context["problem_understanding"] = cached_data["problem_understanding"]
-        context["overview_text"] = cached_data["overview_text"]
-        logger.info(f"   Task: {context['problem_understanding'].get('competition_type', 'N/A')}")
-        logger.info(f"   Metric: {context['problem_understanding'].get('evaluation_metric', 'N/A')}")
-        return context
 
     # Initialize Problem Understanding Agent
     problem_agent = orchestrator.problem_understanding_agent
@@ -154,18 +99,9 @@ async def run_problem_understanding(
     context["problem_understanding"] = understanding
     context["overview_text"] = overview_text
 
-    # Save to cache
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    with open(cache_file, 'w') as f:
-        json.dump({
-            "problem_understanding": understanding,
-            "overview_text": overview_text
-        }, f, indent=2)
-
     logger.info("✅ Problem understanding completed")
     logger.info(f"   Task: {understanding.get('competition_type', 'N/A')}")
     logger.info(f"   Metric: {understanding.get('evaluation_metric', 'N/A')}")
-    logger.info(f"💾 Cached to: {cache_file}")
 
     return context
 
@@ -188,27 +124,7 @@ async def run_data_analysis(
     logger.info("PHASE 3: DATA ANALYSIS")
     logger.info("=" * 70)
 
-    # Define competition-specific cache file path
     competition_name = context["competition_name"]
-    cache_dir = Path("data") / competition_name
-    cache_file = cache_dir / "phase3_data_analysis.json"
-
-    # Check if cached results exist
-    if cache_file.exists():
-        logger.info("⏭️  Phase 3 already completed - loading from cache")
-        with open(cache_file, 'r') as f:
-            data_analysis = json.load(f)
-
-        # Add to context
-        context["data_analysis"] = data_analysis
-        context["needs_preprocessing"] = data_analysis.get("preprocessing_required", False)
-        context["target_column"] = data_analysis.get("target_column")
-        context["data_files"] = data_analysis.get("data_files", {})
-
-        logger.info(f"   Data modality: {data_analysis.get('data_modality')}")
-        logger.info(f"   Target column: {context.get('target_column')}")
-        logger.info(f"   File mapping: train={context['data_files'].get('train_file')}, test={context['data_files'].get('test_file')}")
-        return context
 
     # Initialize Data Analysis Agent
     data_agent = DataAnalysisAgent()
@@ -225,11 +141,6 @@ async def run_data_analysis(
     logger.info(f"✅ Target column: {data_analysis.get('target_column')}")
     logger.info(f"✅ Preprocessing required: {data_analysis.get('preprocessing_required')}")
 
-    # Save to cache
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    with open(cache_file, 'w') as f:
-        json.dump(data_analysis, f, indent=2)
-
     # Add to context
     context["data_analysis"] = data_analysis
     context["needs_preprocessing"] = data_analysis.get("preprocessing_required", False)
@@ -240,7 +151,6 @@ async def run_data_analysis(
     # Extract file mapping (NO HARDCODED NAMES!)
     context["data_files"] = data_analysis.get("data_files", {})
     logger.info(f"📁 File mapping: train={context['data_files'].get('train_file')}, test={context['data_files'].get('test_file')}")
-    logger.info(f"💾 Cached to: {cache_file}")
 
     # Log key insights
     if "key_insights" in data_analysis:
@@ -295,8 +205,9 @@ async def run_preprocessing(
 
     logger.info(f"✅ Generated {len(preprocessing_code)} chars of preprocessing code")
 
-    # Save the generated code to file
-    preprocessing_file = Path(context["data_path"]) / "preprocessing.py"
+    # Save preprocessing code to raw folder
+    data_path = Path(context["data_path"])
+    preprocessing_file = data_path / "preprocessing.py"
     preprocessing_file.write_text(preprocessing_code)
     logger.info(f"💾 Saved preprocessing code to: {preprocessing_file}")
 
@@ -304,7 +215,6 @@ async def run_preprocessing(
     logger.info("⚙️  Executing preprocessing code...")
 
     try:
-
         # Create a namespace for execution with necessary variables
         namespace = {
             "data_path": context["data_path"],
@@ -317,7 +227,6 @@ async def run_preprocessing(
         # Execute the code
         exec(preprocessing_code, namespace)
 
-
         # Call the preprocess_data function
         if "preprocess_data" not in namespace:
             raise RuntimeError("Generated code missing 'preprocess_data' function")
@@ -325,17 +234,16 @@ async def run_preprocessing(
         preprocess_func = namespace["preprocess_data"]
         result = preprocess_func(context["data_path"])
 
-
         logger.info(f"✅ Preprocessing completed")
         logger.info(f"   Train shape: {result.get('train_shape')}")
         logger.info(f"   Test shape: {result.get('test_shape')}")
         logger.info(f"   Columns: {len(result.get('columns', []))}")
         logger.info(f"   Missing values remaining: {result.get('missing_values_remaining', 0)}")
 
-        # Update context with clean data path
-        clean_data_path = Path(context["data_path"]) / "clean_train.csv"
-        if clean_data_path.exists():
-            context["clean_data_path"] = str(Path(context["data_path"]))
+        # Update context - clean files saved in same raw/ folder
+        clean_train_path = data_path / "clean_train.csv"
+        if clean_train_path.exists():
+            context["clean_data_path"] = context["data_path"]
             context["preprocessing_result"] = result
         else:
             raise RuntimeError("Preprocessing did not create clean_train.csv")
@@ -449,9 +357,16 @@ async def run_feature_engineering(
 
     logger.info(f"✅ Generated {len(feature_code)} chars of feature engineering code")
 
-    # Save the generated code to file
-    data_path = Path(context.get("clean_data_path", context["data_path"]))
-    feature_file = data_path / "feature_engineering.py"
+    # Setup featured data directory: data/{competition}/featured/
+    competition_name = context["competition_name"]
+    data_base = Path("data") / competition_name
+    featured_dir = data_base / "featured"
+    featured_dir.mkdir(parents=True, exist_ok=True)
+    metadata_dir = data_base / "metadata"
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save the generated code to metadata folder
+    feature_file = metadata_dir / "feature_engineering.py"
     feature_file.write_text(feature_code)
     logger.info(f"💾 Saved feature engineering code to: {feature_file}")
 
@@ -470,7 +385,8 @@ async def run_feature_engineering(
             raise RuntimeError("Generated code missing 'engineer_features' function")
 
         engineer_func = namespace["engineer_features"]
-        result = engineer_func(str(data_path))
+        clean_data_path = context.get("clean_data_path", context["data_path"])
+        result = engineer_func(clean_data_path, str(featured_dir))
 
         logger.info(f"✅ Feature engineering completed")
         logger.info(f"   Train shape: {result.get('train_shape')}")
@@ -480,9 +396,9 @@ async def run_feature_engineering(
         logger.info(f"   Features added: {result.get('features_added', 0)}")
 
         # Update context with featured data path
-        featured_train = data_path / "featured_train.csv"
+        featured_train = featured_dir / "featured_train.csv"
         if featured_train.exists():
-            context["featured_data_path"] = str(data_path)
+            context["featured_data_path"] = str(featured_dir)
             context["feature_engineering_result"] = result
         else:
             raise RuntimeError("Feature engineering did not create featured_train.csv")
@@ -586,6 +502,7 @@ async def run_model_training(
         "target_column": context["target_column"],
         "execution_plan": execution_plan,  # ← PASS EXECUTION PLAN!
         "data_analysis": context["data_analysis"],
+        "ai_analysis": context["data_analysis"],  # Model trainer expects this key
         "competition_name": context["competition_name"],
     }
 
@@ -690,7 +607,7 @@ async def run_submission(
 
     # Add to context
     context.update({
-        "submission_file": results.get("submission_file"),
+        "submission_file": results.get("submission_path"),  # Submitter returns "submission_path"
         "submission_id": results.get("submission_id"),
         "leaderboard_score": results.get("leaderboard_score")
     })

@@ -12,19 +12,15 @@ logger = logging.getLogger(__name__)
 
 def setup_data_directories(data_dir: Path) -> None:
     """
-    Create necessary data directories.
+    Create base data directory.
+    Individual competition directories (raw/, processed/, featured/, metadata/)
+    are created on-demand by each phase.
 
     Args:
         data_dir: Base data directory path
     """
     data_dir.mkdir(parents=True, exist_ok=True)
-
-    # Create subdirectories
-    (data_dir / "raw").mkdir(exist_ok=True)
-    (data_dir / "processed").mkdir(exist_ok=True)
-    (data_dir / "external").mkdir(exist_ok=True)
-
-    logger.info(f"Data directories set up at: {data_dir}")
+    logger.info(f"Data directory set up at: {data_dir}")
 
 
 def extract_zip_files(directory: Path) -> List[str]:

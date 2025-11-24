@@ -92,36 +92,45 @@ async def get_current_position(
             env=env
         )
 
-        # Parse submissions to get latest
+        # Parse submissions to get best (highest score)
         submissions = parse_submissions(result.stdout)
 
         if not submissions:
             logger.warning("No submissions found")
             return None
 
-        # Get latest submission score
-        latest_submission = submissions[0]
-        latest_score = latest_submission.get("publicScore")
+        # Get BEST submission (highest publicScore), not latest
+        # Filter out None scores first
+        valid_submissions = [s for s in submissions if s.get("publicScore") is not None]
+
+        if not valid_submissions:
+            logger.warning("No submissions with valid scores found")
+            return None
+
+        best_submission = max(valid_submissions, key=lambda x: x.get("publicScore", 0))
+        best_score = best_submission.get("publicScore")
+
+        logger.info(f"Found {len(submissions)} submissions, best score: {best_score}")
 
         # Find position in leaderboard
         entries = leaderboard_data.get("entries", [])
         rank = 1
 
         for entry in entries:
-            if entry.get("score") == latest_score:
+            if entry.get("score") == best_score:
                 return {
                     "rank": rank,
-                    "score": latest_score,
-                    "submission": latest_submission
+                    "score": best_score,
+                    "submission": best_submission
                 }
             rank += 1
 
         # If exact match not found, estimate position
         logger.warning("Exact position not found, estimating...")
         return {
-            "rank": estimate_rank(latest_score, entries),
-            "score": latest_score,
-            "submission": latest_submission,
+            "rank": estimate_rank(best_score, entries),
+            "score": best_score,
+            "submission": best_submission,
             "estimated": True
         }
 
