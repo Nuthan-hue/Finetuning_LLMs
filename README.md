@@ -51,24 +51,45 @@ cp .env.example .env
 
 ### Run Your First Competition
 
+**Option 1: Tool-Based Optimization Loop (Recommended)**
 ```bash
-# Interactive menu
+# Automatic optimization with agent learning
+python run_optimization_loop.py titanic 0.20
+
+# The system will:
+# - Iteration 1: Run baseline (all phases 1-10)
+# - Iteration 2+: AI learns from history via tools
+# - Planning Agent queries optimization history
+# - Only reruns necessary phases (efficient!)
+# - Continues until target achieved
+```
+
+**Option 2: Interactive Mode**
+```bash
+# Interactive menu with guided setup
 python src/main.py
 ```
 
-**What happens:**
-1. Choose option 1 (Run Full Competition Workflow)
-2. Enter competition name: `titanic`
-3. Target percentile: `0.20` (top 20%)
-4. **AI takes over** - decides everything!
+**Option 3: Individual Phase Testing**
+```bash
+# Test each phase separately (great for development)
+python tests/test_phase_1_data_collection.py titanic
+python tests/test_phase_2_problem_understanding.py titanic
+# ... continue through phase 10
 
-The system will:
+# Then run optimization loop
+python run_optimization_loop.py titanic 0.20
+```
+
+**What the system does:**
 1. 🔍 Download and analyze data
 2. 🧠 Understand competition requirements
 3. 🤖 Create AI-driven execution plan
 4. 🏋️ Train optimal models
 5. 📤 Submit predictions
-6. 📈 Monitor leaderboard and iterate until top 20%
+6. 📈 Monitor leaderboard
+7. 🔄 **Learn from results via agent tools**
+8. ♻️ **Iterate with smart optimization**
 
 ---
 
@@ -439,9 +460,29 @@ temperature=0.7  # Increase from 0.3
 
 ## 📚 Documentation
 
-- **README.md** (this file) - User guide
+### Core Documentation
+- **[EXECUTION_GUIDE.md](docs/EXECUTION_GUIDE.md)** - Complete guide to all execution methods
+- **[TOOL_BASED_OPTIMIZATION_ARCHITECTURE.md](docs/TOOL_BASED_OPTIMIZATION_ARCHITECTURE.md)** - Tool-based optimization design
+- **[PHASE_IO_DOCUMENTATION.md](docs/PHASE_IO_DOCUMENTATION.md)** - Phase input/output contracts
+- **[VALIDATION_REPORT.md](docs/VALIDATION_REPORT.md)** - System validation results
+
+### Quick Reference
+- **README.md** (this file) - User guide and quick start
 - **CLAUDE.md** - Technical guide for AI assistants
 - **run_agentic.py** - Quick launcher script
+- **run_optimization_loop.py** - Optimization loop script
+
+### Execution Methods Summary
+
+| Method | Command | Best For |
+|--------|---------|----------|
+| **Tool-Based Optimization** | `python run_optimization_loop.py titanic 0.20` | Production runs with learning |
+| **Test Optimization Loop** | `python tests/test_optimization_loop.py titanic` | Testing architecture (3 iterations) |
+| **Individual Phases** | `python tests/test_phase_X_name.py titanic` | Development, debugging |
+| **Autonomous Mode** | `python run_autonomous.py titanic 0.20` | Fully autonomous (expensive) |
+| **Interactive Mode** | `python src/main.py` | Exploration, guided setup |
+
+See **[EXECUTION_GUIDE.md](docs/EXECUTION_GUIDE.md)** for detailed usage instructions.
 
 ---
 

@@ -155,13 +155,29 @@ async def test_phase_10_optimization(competition_name: str = "titanic"):
                 }, f, indent=2)
 
             # ─────────────────────────────────────────────────────────
+            # Write strategy to agent memory for future iterations
+            # ─────────────────────────────────────────────────────────
+            if context.get("optimization_strategy"):
+                try:
+                    from src.agents.memory import AgentMemory
+
+                    memory = AgentMemory(competition_name)
+                    memory.set_optimization_strategy(context["optimization_strategy"])
+
+                    print(f"   📝 Wrote optimization strategy to agent memory")
+
+                except Exception as e:
+                    print(f"   ⚠️  Failed to write to agent memory: {e}")
+                    # Don't fail the test if memory write fails
+
+            # ─────────────────────────────────────────────────────────
             # NESTED BLOCK: Display results based on strategy
             # ─────────────────────────────────────────────────────────
             if context.get("optimization_strategy"):
                 # CASE 5A-1: Strategy exists (needs improvement)
                 print("\n✅ Phase 10 PASSED")
                 print(f"   Strategy: {context.get('optimization_strategy', {}).get('action', 'N/A')}")
-                print(f"   Loop back to: {context.get('optimization_strategy', {}).get('loop_back_to', 'N/A')}")
+                print(f"   Phases to rerun: {context.get('optimization_strategy', {}).get('phases_to_rerun', 'N/A')}")
             else:
                 # CASE 5A-2: Strategy is None (target achieved, phase skipped)
                 print("\n✅ Phase 10 PASSED (skipped)")

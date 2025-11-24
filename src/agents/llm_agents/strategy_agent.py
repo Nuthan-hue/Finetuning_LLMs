@@ -86,12 +86,28 @@ Consider:
 - What's the performance trend - improving, plateauing, or degrading?
 - Have we exhausted model variations?
 
+Phase Dependencies:
+- Phase 5 (Planning): Creates execution plan
+- Phase 6 (Feature Engineering): Creates new features (only if data_modality != 'tabular')
+- Phase 7 (Training): Trains the model
+- Phase 8 (Submission): Creates and submits predictions
+- Phase 9 (Evaluation): Checks leaderboard
+- Phase 10 (Optimization): Decides next steps (this phase)
+
+**Important**: Determine which phases need to rerun based on your action:
+- switch_model → [5, 7, 8, 9] (new plan, retrain, resubmit, reevaluate)
+- retrain → [7, 8, 9] (retrain with same plan, resubmit, reevaluate)
+- tune_aggressive → [5, 7, 8, 9] (new plan with aggressive tuning)
+- feature_engineering → [5, 6, 7, 8, 9] (new plan, new features, retrain, resubmit)
+- ensemble → [5, 7, 8, 9] (ensemble plan, train ensemble, resubmit)
+
 Respond with JSON:
 {{
     "action": "switch_model|retrain|tune_aggressive|feature_engineering|ensemble",
     "reasoning": "Detailed explanation of why this is the best strategy",
     "new_model": "model_name if switching, else null",
     "aggressive": true/false,
+    "phases_to_rerun": [5, 7, 8, 9],
     "config_updates": {{
         "model_type": "type if switching",
         "learning_rate": 0.01,
@@ -177,19 +193,23 @@ Respond with JSON:
         # Simple fallback logic
         if gap > 0.15:
             action = "tune_aggressive"
+            phases_to_rerun = [5, 7, 8, 9]
         elif current_model not in tried_models:
             tried_models.append(current_model)
             action = "switch_model"
             new_model = "xgboost" if current_model == "lightgbm" else "lightgbm"
+            phases_to_rerun = [5, 7, 8, 9]
         else:
             action = "retrain"
             new_model = None
+            phases_to_rerun = [7, 8, 9]
 
         return {
             "action": action,
             "reasoning": "Fallback strategy due to AI error",
             "new_model": new_model if action == "switch_model" else None,
             "aggressive": gap > 0.15,
+            "phases_to_rerun": phases_to_rerun,
             "config_updates": {},
             "expected_improvement": "Unknown",
             "confidence": "low"
