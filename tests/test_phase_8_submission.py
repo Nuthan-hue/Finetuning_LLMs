@@ -114,13 +114,32 @@ async def test_phase_8_submission(competition_name: str = "titanic", submit_to_k
                     timeout=120
                 )
         else:
-            # Test mode - just create file, don't submit
-            print("   🧪 TEST MODE - Will NOT submit to Kaggle (only create file)")
-            with patch('builtins.input', return_value='no'):
+            # Interactive mode - ask user if they want to submit
+            print("\n" + "=" * 70)
+            print("📤 SUBMISSION READY")
+            print("=" * 70)
+            print(f"   Competition: {competition_name}")
+            print(f"   Model: {context.get('model_type', 'unknown')}")
+            if context.get('cv_score'):
+                print(f"   CV Score: {context.get('cv_score'):.4f}")
+            print()
+
+            user_answer = input("🤔 Submit to Kaggle leaderboard? (yes/no): ").strip().lower()
+
+            if user_answer == 'yes':
+                print("   ✅ Submitting to Kaggle...")
+                # Don't mock - let it actually ask (user already answered above)
                 context = await asyncio.wait_for(
                     run_submission(orchestrator, context),
                     timeout=120
                 )
+            else:
+                print("   ⏭️  Creating submission file only (no upload)")
+                with patch('builtins.input', return_value='no'):
+                    context = await asyncio.wait_for(
+                        run_submission(orchestrator, context),
+                        timeout=120
+                    )
 
         assert "submission_file" in context, "Missing submission_file"
 
