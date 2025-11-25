@@ -19,6 +19,9 @@ def _get_available_providers():
         available.append("openai")
     if os.getenv("KIMI_API_KEY"):
         available.append("kimi")
+    # Ollama is always available if running locally
+    if os.getenv("OLLAMA_HOST") or os.getenv("AI_PROVIDER") == "ollama":
+        available.append("ollama")
 
     return available
 
@@ -29,7 +32,13 @@ def _get_primary_provider():
     env_provider = os.getenv("AI_PROVIDER")
     if env_provider:
         provider = env_provider.lower()
-        # Verify the key exists
+
+        # Ollama doesn't need API key verification
+        if provider == "ollama":
+            logger.info(f"🤖 Using OLLAMA (local models)")
+            return provider
+
+        # Verify the key exists for cloud providers
         key_map = {
             "gemini": "GEMINI_API_KEY",
             "groq": "GROQ_API_KEY",
@@ -42,22 +51,23 @@ def _get_primary_provider():
         else:
             logger.warning(f"⚠️  AI_PROVIDER={provider} but {key_map.get(provider)} not found in .env")
 
-    # Auto-select based on available keys (priority: Groq > Gemini > OpenAI > Kimi)
-    # Groq has highest rate limits for free tier
+    # Auto-select based on available keys (priority: Ollama > Groq > Gemini > OpenAI > Kimi)
+    # Ollama is free and unlimited (local)
     available = _get_available_providers()
 
     if not available:
         raise ValueError(
-            "❌ No API keys found in .env file!\n"
+            "❌ No AI provider found!\n"
             "Please set at least one of:\n"
-            "  - GEMINI_API_KEY (recommended)\n"
+            "  - AI_PROVIDER=ollama (recommended, free, local)\n"
+            "  - GEMINI_API_KEY\n"
             "  - GROQ_API_KEY (highest free tier limits)\n"
             "  - OPENAI_API_KEY\n"
             "  - KIMI_API_KEY"
         )
 
-    # Priority order: Groq (highest free limits) > Gemini > OpenAI > Kimi
-    priority = ["groq", "gemini", "openai", "kimi"]
+    # Priority order: Ollama (local, free, unlimited) > Groq > Gemini > OpenAI > Kimi
+    priority = ["ollama", "groq", "gemini", "openai", "kimi"]
     for provider in priority:
         if provider in available:
             logger.info(f"🤖 Auto-selected {provider.upper()} (best available)")
@@ -307,6 +317,22 @@ def _call_provider(provider: str, model, prompt: str, task_info: dict) -> str:
         )
         return response.choices[0].message.content.strip()
 
+    elif provider == "ollama":
+        try:
+            from ollama import Client
+        except ImportError:
+            raise RuntimeError("ollama not installed. Run: pip install ollama")
+
+        host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        client = Client(host=host)
+
+        response = client.chat(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+            options={"temperature": temperature}
+        )
+        return response['message']['content'].strip()
+
     else:
         raise ValueError(f"Unknown provider: {provider}")
 
@@ -347,6 +373,12 @@ def _select_model_for_task(provider: str, task_type: str) -> str:
             "analysis": "moonshot-v1-8k",
             "planning": "moonshot-v1-8k",
             "general": "moonshot-v1-8k"
+        },
+        "ollama": {
+            "code": "qwen2.5-coder:14b",  # Specialized code model
+            "analysis": "llama3.2:7b",  # Fast for structured output
+            "planning": "llama3.3:70b",  # Best reasoning
+            "general": "llama3.2:7b"  # Fast and efficient
         }
     }
 

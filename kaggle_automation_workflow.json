@@ -1,0 +1,1523 @@
+{
+  "name": "Kaggle Competition Automation - Full Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "kaggle-competition",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook_trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "kaggle-start"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "comp_name",
+              "name": "competition_name",
+              "value": "={{ $json.body.competition_name || 'titanic' }}",
+              "type": "string"
+            },
+            {
+              "id": "target",
+              "name": "target_percentile",
+              "value": "={{ $json.body.target_percentile || 0.20 }}",
+              "type": "number"
+            },
+            {
+              "id": "max_iter",
+              "name": "max_iterations",
+              "value": "={{ $json.body.max_iterations || 5 }}",
+              "type": "number"
+            },
+            {
+              "id": "iteration",
+              "name": "current_iteration",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "id": "target_met",
+              "name": "target_achieved",
+              "value": false,
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "init_variables",
+      "name": "Initialize Variables",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "iter_check",
+              "leftValue": "={{ $json.current_iteration }}",
+              "rightValue": "={{ $json.max_iterations }}",
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            },
+            {
+              "id": "target_check",
+              "leftValue": "={{ $json.target_achieved }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "iteration_gate",
+      "name": "Continue Iteration?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "=cd {{ $env.PROJECT_DIR || '/Volumes/SD_Card/Finetuning_LLMs' }} && python3 tests/test_phase_1_data_collection.py {{ $json.competition_name }}"
+      },
+      "id": "phase1_data_collection",
+      "name": "Phase 1: Data Collection",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        850,
+        200
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "phase1_result",
+              "name": "phase1_status",
+              "value": "={{ $json.exitCode === 0 ? 'success' : 'failed' }}",
+              "type": "string"
+            },
+            {
+              "id": "phase1_output",
+              "name": "phase1_data",
+              "value": "={{ $json.stdout }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "phase1_result",
+      "name": "Phase 1 Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        1050,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "phase1_success",
+              "leftValue": "={{ $json.phase1_status }}",
+              "rightValue": "success",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "phase1_check",
+      "name": "Phase 1 Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "command": "=cd /Volumes/SD_Card/Finetuning_LLMs && python3 -c \"\nimport os, json\ncomp = '{{ $json.competition_name }}'\ndata_dir = f'data/{comp}'\nif os.path.exists(data_dir):\n    print(json.dumps({'valid': True, 'message': 'Data exists'}))\nelse:\n    print(json.dumps({'valid': False, 'message': 'Data directory not found'}))\n\""
+      },
+      "id": "data_validation",
+      "name": "Data Validation Agent",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1450,
+        200
+      ],
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "command": "=cd /Volumes/SD_Card/Finetuning_LLMs && python3  tests/test_phase_2_problem_understanding.py {{ $json.competition_name }}"
+      },
+      "id": "phase2_problem_understanding",
+      "name": "Phase 2: Problem Understanding",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        850,
+        400
+      ],
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "command": "=cd /Volumes/SD_Card/Finetuning_LLMs && python3  tests/test_phase_3_data_analysis.py {{ $json.competition_name }}"
+      },
+      "id": "phase3_data_analysis",
+      "name": "Phase 3: Data Analysis",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        850,
+        600
+      ],
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "command": "=cd /Volumes/SD_Card/Finetuning_LLMs && python3  tests/test_phase_4_preprocessing.py {{ $json.competition_name }}"
+      },
+      "id": "phase4_preprocessing",
+      "name": "Phase 4: Preprocessing",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        850,
+        800
+      ],
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "command": "=cd /Volumes/SD_Card/Finetuning_LLMs && python3  tests/test_phase_5_planning.py {{ $json.competition_name }}"
+      },
+      "id": "phase5_planning",
+      "name": "Phase 5: Planning",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        400
+      ],
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "command": "=cd /Volumes/SD_Card/Finetuning_LLMs && python3  tests/test_phase_6_feature_engineering.py {{ $json.competition_name }}"
+      },
+      "id": "phase6_feature_engineering",
+      "name": "Phase 6: Feature Engineering",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        600
+      ],
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "command": "=cd /Volumes/SD_Card/Finetuning_LLMs && python3 -c \"\nimport asyncio, json, sys\nfrom pathlib import Path\nfrom src.agents.llm_agents import ModelSelectionAgent\n\ncomp = '{{ $json.competition_name }}'\ntry:\n    phase3_path = Path(f'data/{comp}/test/test_phase3_cache.json')\n    phase2_path = Path(f'data/{comp}/test/test_phase2_cache.json')\n    \n    data_analysis = json.loads(phase3_path.read_text()) if phase3_path.exists() else {}\n    problem = json.loads(phase2_path.read_text()) if phase2_path.exists() else {}\n    \n    agent = ModelSelectionAgent()\n    result = asyncio.run(agent.select_best_model(data_analysis, problem))\n    print(json.dumps(result))\nexcept Exception as e:\n    print(json.dumps({'error': str(e), 'selected_model': 'lightgbm', 'confidence': 0.5}))\n    sys.exit(1)\n\""
+      },
+      "id": "model_selection",
+      "name": "Model Selection Agent",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1450,
+        800
+      ],
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "command": "=cd /Volumes/SD_Card/Finetuning_LLMs && python3  tests/test_phase_7_model_training.py {{ $json.competition_name }}"
+      },
+      "id": "phase7_training",
+      "name": "Phase 7: Model Training",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1650,
+        800
+      ],
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "command": "=cd /Volumes/SD_Card/Finetuning_LLMs && python3 -c \"\nimport asyncio, json, sys\nfrom src.agents.llm_agents import HyperparameterOptAgent\n\ntry:\n    agent = HyperparameterOptAgent()\n    selected_model = '{{ $json.selected_model or \"lightgbm\" }}'\n    current_params = {}\n    validation_score = 0.0\n    iteration = int('{{ $json.current_iteration or 1 }}')\n    \n    result = asyncio.run(agent.suggest_hyperparameters(\n        selected_model, current_params, validation_score, iteration, []\n    ))\n    print(json.dumps(result))\nexcept Exception as e:\n    print(json.dumps({'error': str(e), 'suggested_params': {}, 'expected_improvement': 0.0}))\n    sys.exit(1)\n\""
+      },
+      "id": "hyperparameter_opt",
+      "name": "Hyperparameter Optimization",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1850,
+        800
+      ],
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "command": "=cd /Volumes/SD_Card/Finetuning_LLMs && python3 -c \"\nimport asyncio, json, sys\nfrom src.agents.llm_agents import EnsembleStrategyAgent\n\ntry:\n    agent = EnsembleStrategyAgent()\n    trained_models = []\n    validation_scores = []\n    problem_type = 'classification'\n    \n    result = asyncio.run(agent.design_ensemble(\n        trained_models, validation_scores, problem_type\n    ))\n    print(json.dumps(result))\nexcept Exception as e:\n    print(json.dumps({'error': str(e), 'should_ensemble': False, 'ensemble_method': 'none'}))\n    sys.exit(1)\n\""
+      },
+      "id": "ensemble_strategy",
+      "name": "Ensemble Strategy Agent",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        2050,
+        800
+      ],
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "command": "=cd /Volumes/SD_Card/Finetuning_LLMs && echo 'yes' | python3 tests/test_phase_8_submission.py {{ $json.competition_name }}"
+      },
+      "id": "phase8_submission",
+      "name": "Phase 8: Submission",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        1000
+      ],
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "command": "=cd /Volumes/SD_Card/Finetuning_LLMs && python3  tests/test_phase_9_leaderboard.py {{ $json.competition_name }}"
+      },
+      "id": "phase9_leaderboard",
+      "name": "Phase 9: Leaderboard Evaluation",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1450,
+        1000
+      ],
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "command": "=cd /Volumes/SD_Card/Finetuning_LLMs && python3  tests/test_phase_10_optimization.py {{ $json.competition_name }}"
+      },
+      "id": "phase10_optimization",
+      "name": "Phase 10: Optimization Strategy",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1650,
+        1000
+      ],
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs');\nconst path = require('path');\n\nconst competitionName = $input.item.json.competition_name;\nconst phase9CachePath = `data/${competitionName}/test/test_phase9_cache.json`;\n\ntry {\n  const phase9Data = JSON.parse(fs.readFileSync(phase9CachePath, 'utf8'));\n  const targetMet = phase9Data.meets_target || false;\n  const currentPercentile = phase9Data.current_percentile;\n  const currentRank = phase9Data.current_rank;\n  \n  return {\n    json: {\n      ...$input.item.json,\n      target_achieved: targetMet,\n      current_percentile: currentPercentile,\n      current_rank: currentRank,\n      current_iteration: $input.item.json.current_iteration + 1\n    }\n  };\n} catch (error) {\n  return {\n    json: {\n      ...$input.item.json,\n      target_achieved: false,\n      current_iteration: $input.item.json.current_iteration + 1,\n      error: error.message\n    }\n  };\n}"
+      },
+      "id": "check_target",
+      "name": "Check Target Achievement",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1850,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "target_achieved",
+              "leftValue": "={{ $json.target_achieved }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "target_check_gate",
+      "name": "Target Achieved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2050,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "success_msg",
+              "name": "status",
+              "value": "success",
+              "type": "string"
+            },
+            {
+              "id": "completion_msg",
+              "name": "message",
+              "value": "=Target achieved in {{ $json.current_iteration }} iterations! Competition: {{ $json.competition_name }}",
+              "type": "string"
+            },
+            {
+              "id": "final_rank",
+              "name": "final_rank",
+              "value": "={{ $json.current_rank }}",
+              "type": "number"
+            },
+            {
+              "id": "final_percentile",
+              "name": "final_percentile",
+              "value": "={{ $json.current_percentile }}",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "id": "success_response",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        2250,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Error Recovery Agent\nconst errorMsg = $input.item.error?.message || 'Unknown error';\nconst phaseName = $input.item.json.current_phase || 'unknown';\nconst context = $input.item.json;\n\n// Call Error Recovery Agent\nconst { execSync } = require('child_process');\nconst errorAnalysis = execSync(`python3 -c \"\nimport asyncio, json\nfrom src.agents.llm_agents import ErrorRecoveryAgent\n\nagent = ErrorRecoveryAgent()\nerror_info = {\n    'error': '${errorMsg.replace(/'/g, \"\\\\'\").replace(/\"/g, '\\\\\"')}',\n    'phase': '${phaseName}',\n    'context': ${JSON.stringify(context).replace(/'/g, \"\\\\'\")}\n}\n\nresult = asyncio.run(agent.analyze_and_fix(Exception('${errorMsg}'), error_info, None, '${phaseName}'))\nprint(json.dumps(result))\n\"`, { encoding: 'utf8' });\n\nconst recovery = JSON.parse(errorAnalysis);\n\nreturn {\n  json: {\n    ...context,\n    error_analysis: recovery,\n    should_retry: recovery.auto_fixable && recovery.retry_strategy !== 'manual_intervention',\n    error_message: errorMsg,\n    failed_phase: phaseName\n  }\n};"
+      },
+      "id": "error_recovery",
+      "name": "Error Recovery Agent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1450,
+        1200
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "should_retry",
+              "leftValue": "={{ $json.should_retry }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "retry_check",
+      "name": "Should Retry?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1650,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "final_status",
+              "name": "status",
+              "value": "max_iterations_reached",
+              "type": "string"
+            },
+            {
+              "id": "final_msg",
+              "name": "message",
+              "value": "=Max iterations ({{ $json.max_iterations }}) reached. Best percentile: {{ $json.current_percentile }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "max_iter_response",
+      "name": "Max Iterations Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        2250,
+        1100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "webhook_response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2450,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Read phase 10 cache to get next phases\nconst fs = require('fs');\nconst competitionName = $input.item.json.competition_name;\nconst iteration = $input.item.json.current_iteration;\n\nlet phasesToRun;\n\nif (iteration === 1) {\n  // First iteration: run all phases\n  phasesToRun = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];\n} else {\n  // Subsequent iterations: read from Phase 10 strategy\n  try {\n    const phase10Cache = `data/${competitionName}/test/test_phase10_cache.json`;\n    const phase10Data = JSON.parse(fs.readFileSync(phase10Cache, 'utf8'));\n    const strategy = phase10Data.optimization_strategy;\n    \n    phasesToRun = strategy.phases_to_rerun || [5, 7, 8, 9, 10];\n    if (!phasesToRun.includes(10)) {\n      phasesToRun.push(10);\n    }\n  } catch (error) {\n    // Default phases if strategy not found\n    phasesToRun = [5, 7, 8, 9, 10];\n  }\n}\n\nreturn {\n  json: {\n    ...$input.item.json,\n    phases_to_run: phasesToRun\n  }\n};"
+      },
+      "id": "determine_phases",
+      "name": "Determine Phases to Run",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Clear caches for phases that will rerun\nconst fs = require('fs');\nconst path = require('path');\n\nconst competitionName = $input.item.json.competition_name;\nconst phasesToRun = $input.item.json.phases_to_run || [];\nconst testCacheDir = `data/${competitionName}/test`;\n\nif ($input.item.json.current_iteration > 1) {\n  phasesToRun.forEach(phase => {\n    const cacheFile = path.join(testCacheDir, `test_phase${phase}_cache.json`);\n    try {\n      if (fs.existsSync(cacheFile)) {\n        fs.unlinkSync(cacheFile);\n        console.log(`Cleared cache for phase ${phase}`);\n      }\n    } catch (error) {\n      console.error(`Error clearing cache for phase ${phase}:`, error.message);\n    }\n  });\n}\n\nreturn { json: $input.item.json };"
+      },
+      "id": "clear_caches",
+      "name": "Clear Phase Caches",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1050,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "validation_result",
+              "name": "data_validation_status",
+              "value": "={{ $json.exitCode === 0 ? 'valid' : 'invalid' }}",
+              "type": "string"
+            },
+            {
+              "id": "validation_output",
+              "name": "validation_data",
+              "value": "={{ $json.stdout }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "validation_result",
+      "name": "Data Validation Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        1650,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "phase2_result",
+              "name": "phase2_status",
+              "value": "={{ $json.exitCode === 0 ? 'success' : 'failed' }}",
+              "type": "string"
+            },
+            {
+              "id": "phase2_output",
+              "name": "phase2_data",
+              "value": "={{ $json.stdout }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "phase2_result",
+      "name": "Phase 2 Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        1050,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "phase3_result",
+              "name": "phase3_status",
+              "value": "={{ $json.exitCode === 0 ? 'success' : 'failed' }}",
+              "type": "string"
+            },
+            {
+              "id": "phase3_output",
+              "name": "phase3_data",
+              "value": "={{ $json.stdout }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "phase3_result",
+      "name": "Phase 3 Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        1050,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "phase4_result",
+              "name": "phase4_status",
+              "value": "={{ $json.exitCode === 0 ? 'success' : 'failed' }}",
+              "type": "string"
+            },
+            {
+              "id": "phase4_output",
+              "name": "phase4_data",
+              "value": "={{ $json.stdout }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "phase4_result",
+      "name": "Phase 4 Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        1050,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "phase5_result",
+              "name": "phase5_status",
+              "value": "={{ $json.exitCode === 0 ? 'success' : 'failed' }}",
+              "type": "string"
+            },
+            {
+              "id": "phase5_output",
+              "name": "phase5_data",
+              "value": "={{ $json.stdout }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "phase5_result",
+      "name": "Phase 5 Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        1450,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "phase6_result",
+              "name": "phase6_status",
+              "value": "={{ $json.exitCode === 0 ? 'success' : 'failed' }}",
+              "type": "string"
+            },
+            {
+              "id": "phase6_output",
+              "name": "phase6_data",
+              "value": "={{ $json.stdout }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "phase6_result",
+      "name": "Phase 6 Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        1450,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "model_selection_result",
+              "name": "selected_model",
+              "value": "={{ JSON.parse($json.stdout).selected_model }}",
+              "type": "string"
+            },
+            {
+              "id": "model_confidence",
+              "name": "model_confidence",
+              "value": "={{ JSON.parse($json.stdout).confidence }}",
+              "type": "number"
+            },
+            {
+              "id": "model_reasoning",
+              "name": "model_reasoning",
+              "value": "={{ JSON.parse($json.stdout).reasoning }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "model_selection_result",
+      "name": "Model Selection Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        1650,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "phase7_result",
+              "name": "phase7_status",
+              "value": "={{ $json.exitCode === 0 ? 'success' : 'failed' }}",
+              "type": "string"
+            },
+            {
+              "id": "trained_models",
+              "name": "trained_models",
+              "value": "={{ $json.stdout }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "phase7_result",
+      "name": "Phase 7 Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        1850,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "hyperparams_result",
+              "name": "suggested_hyperparams",
+              "value": "={{ JSON.parse($json.stdout).suggested_params }}",
+              "type": "object"
+            },
+            {
+              "id": "expected_improvement",
+              "name": "expected_improvement",
+              "value": "={{ JSON.parse($json.stdout).expected_improvement }}",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "id": "hyperparameter_result",
+      "name": "Hyperparameter Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        2050,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ensemble_result",
+              "name": "should_ensemble",
+              "value": "={{ JSON.parse($json.stdout).should_ensemble }}",
+              "type": "boolean"
+            },
+            {
+              "id": "ensemble_method",
+              "name": "ensemble_method",
+              "value": "={{ JSON.parse($json.stdout).ensemble_method }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "ensemble_result",
+      "name": "Ensemble Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        2250,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "phase8_result",
+              "name": "phase8_status",
+              "value": "={{ $json.exitCode === 0 ? 'success' : 'failed' }}",
+              "type": "string"
+            },
+            {
+              "id": "submission_id",
+              "name": "submission_id",
+              "value": "={{ $json.stdout }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "phase8_result",
+      "name": "Phase 8 Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        1450,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "phase9_result",
+              "name": "phase9_status",
+              "value": "={{ $json.exitCode === 0 ? 'success' : 'failed' }}",
+              "type": "string"
+            },
+            {
+              "id": "leaderboard_rank",
+              "name": "current_rank",
+              "value": "={{ $json.stdout }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "phase9_result",
+      "name": "Phase 9 Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        1650,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "phase10_result",
+              "name": "phase10_status",
+              "value": "={{ $json.exitCode === 0 ? 'success' : 'failed' }}",
+              "type": "string"
+            },
+            {
+              "id": "optimization_strategy",
+              "name": "optimization_strategy",
+              "value": "={{ $json.stdout }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "phase10_result",
+      "name": "Phase 10 Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        1850,
+        1000
+      ]
+    }
+  ],
+  "connections": {
+    "webhook_trigger": {
+      "main": [
+        [
+          {
+            "node": "init_variables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "init_variables": {
+      "main": [
+        [
+          {
+            "node": "iteration_gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "iteration_gate": {
+      "main": [
+        [
+          {
+            "node": "determine_phases",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "max_iter_response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "determine_phases": {
+      "main": [
+        [
+          {
+            "node": "clear_caches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "clear_caches": {
+      "main": [
+        [
+          {
+            "node": "phase1_data_collection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase1_data_collection": {
+      "main": [
+        [
+          {
+            "node": "phase1_result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase1_result": {
+      "main": [
+        [
+          {
+            "node": "phase1_check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase1_check": {
+      "main": [
+        [
+          {
+            "node": "data_validation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "error_recovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "data_validation": {
+      "main": [
+        [
+          {
+            "node": "validation_result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "error_recovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "validation_result": {
+      "main": [
+        [
+          {
+            "node": "phase2_problem_understanding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase2_problem_understanding": {
+      "main": [
+        [
+          {
+            "node": "phase2_result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "error_recovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase2_result": {
+      "main": [
+        [
+          {
+            "node": "phase3_data_analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase3_data_analysis": {
+      "main": [
+        [
+          {
+            "node": "phase3_result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "error_recovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase3_result": {
+      "main": [
+        [
+          {
+            "node": "phase4_preprocessing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase4_preprocessing": {
+      "main": [
+        [
+          {
+            "node": "phase4_result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "error_recovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase4_result": {
+      "main": [
+        [
+          {
+            "node": "phase5_planning",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase5_planning": {
+      "main": [
+        [
+          {
+            "node": "phase5_result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "error_recovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase5_result": {
+      "main": [
+        [
+          {
+            "node": "phase6_feature_engineering",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase6_feature_engineering": {
+      "main": [
+        [
+          {
+            "node": "phase6_result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "error_recovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase6_result": {
+      "main": [
+        [
+          {
+            "node": "model_selection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "model_selection": {
+      "main": [
+        [
+          {
+            "node": "model_selection_result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "error_recovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "model_selection_result": {
+      "main": [
+        [
+          {
+            "node": "phase7_training",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase7_training": {
+      "main": [
+        [
+          {
+            "node": "phase7_result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "error_recovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase7_result": {
+      "main": [
+        [
+          {
+            "node": "hyperparameter_opt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "hyperparameter_opt": {
+      "main": [
+        [
+          {
+            "node": "hyperparameter_result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "error_recovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "hyperparameter_result": {
+      "main": [
+        [
+          {
+            "node": "ensemble_strategy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ensemble_strategy": {
+      "main": [
+        [
+          {
+            "node": "ensemble_result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "error_recovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ensemble_result": {
+      "main": [
+        [
+          {
+            "node": "phase8_submission",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase8_submission": {
+      "main": [
+        [
+          {
+            "node": "phase8_result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "error_recovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase8_result": {
+      "main": [
+        [
+          {
+            "node": "phase9_leaderboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase9_leaderboard": {
+      "main": [
+        [
+          {
+            "node": "phase9_result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "error_recovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase9_result": {
+      "main": [
+        [
+          {
+            "node": "phase10_optimization",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase10_optimization": {
+      "main": [
+        [
+          {
+            "node": "phase10_result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "error_recovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phase10_result": {
+      "main": [
+        [
+          {
+            "node": "check_target",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "check_target": {
+      "main": [
+        [
+          {
+            "node": "target_check_gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "target_check_gate": {
+      "main": [
+        [
+          {
+            "node": "success_response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "iteration_gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "success_response": {
+      "main": [
+        [
+          {
+            "node": "webhook_response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "max_iter_response": {
+      "main": [
+        [
+          {
+            "node": "webhook_response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "error_recovery": {
+      "main": [
+        [
+          {
+            "node": "retry_check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "retry_check": {
+      "main": [
+        [
+          {
+            "node": "phase1_data_collection",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "webhook_response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-25T00:00:00.000Z",
+  "versionId": "1"
+}

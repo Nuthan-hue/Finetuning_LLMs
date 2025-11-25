@@ -30,6 +30,8 @@ class BaseLLMAgent:
             self._init_openai(model_name or "gpt-4")
         elif self.provider == "kimi":
             self._init_kimi(model_name or "moonshot-v1-8k")
+        elif self.provider == "ollama":
+            self._init_ollama(model_name or "llama3.3:70b")
         else:
             raise ValueError(f"Unknown AI provider: {self.provider}")
 
@@ -107,3 +109,14 @@ class BaseLLMAgent:
         )
         self.model_name = model_name
         logger.info(f"✅ {self.name} with Kimi ({model_name})")
+
+    def _init_ollama(self, model_name: str):
+        try:
+            from ollama import Client
+        except ImportError:
+            raise RuntimeError("ollama not installed. Run: pip install ollama")
+
+        host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        self.model = Client(host=host)
+        self.model_name = model_name
+        logger.info(f"✅ {self.name} with Ollama ({model_name}) @ {host}")
