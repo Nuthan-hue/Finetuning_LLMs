@@ -572,7 +572,7 @@ If this is iteration 1 and no previous attempts exist, return empty tools_to_use
             logger.warning(f"Failed to get tool decision from AI: {e}. Using no tools.")
             return {"tools_to_use": [], "reasoning": "AI decision failed"}
 
-    def _execute_tool(self, tool_name: str, params: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
+    def _execute_tool(self, tool_name: str, params: Dict[str, Any] = None):
         """
         Execute a tool and return its results.
 

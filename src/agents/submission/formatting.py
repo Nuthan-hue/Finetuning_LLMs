@@ -27,7 +27,7 @@ async def auto_detect_format(
     logger.info("Auto-detecting submission format...")
 
     # Try to find sample submission in data directory
-    data_path = Path("data/raw") / competition_name
+    data_path = Path("data") / competition_name / "raw"
     sample_files = list(data_path.glob("*sample*.csv")) + list(data_path.glob("*submission*.csv"))
 
     if sample_files:
@@ -60,8 +60,8 @@ async def auto_detect_format(
 
             format_spec = {
                 "column_mapping": {
-                    "id": id_col_name,
-                    "prediction": pred_col_name
+                    "id": id_col_name,           # Map 'id' -> 'PassengerId' (or whatever the competition uses)
+                    "prediction": pred_col_name  # Map 'prediction' -> 'Survived' (or whatever the competition uses)
                 },
                 "transformations": transformations
             }

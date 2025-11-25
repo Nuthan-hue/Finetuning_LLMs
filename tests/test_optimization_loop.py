@@ -113,12 +113,22 @@ async def test_optimization_loop(competition_name: str = "titanic", target_perce
             print(f"   ▶️  Phase {phase}: {test_file.name}")
 
             try:
-                result = subprocess.run(
-                    [sys.executable, str(test_file), competition_name],
-                    capture_output=True,
-                    text=True,
-                    timeout=180
-                )
+                # Phase 8 requires user input for submission - auto-answer "yes"
+                if phase == 8:
+                    result = subprocess.run(
+                        [sys.executable, str(test_file), competition_name],
+                        input="yes\n",  # Auto-submit to Kaggle
+                        capture_output=True,
+                        text=True,
+                        timeout=180
+                    )
+                else:
+                    result = subprocess.run(
+                        [sys.executable, str(test_file), competition_name],
+                        capture_output=True,
+                        text=True,
+                        timeout=180
+                    )
 
                 if result.returncode == 0:
                     print(f"      ✅ Phase {phase} passed")

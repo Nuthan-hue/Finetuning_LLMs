@@ -120,11 +120,20 @@ class OptimizationLoop:
         print(f"   ▶️  Running {test_file.name}...")
 
         try:
-            result = subprocess.run(
-                [sys.executable, str(test_file), self.competition_name],
-                capture_output=False,
-                text=True
-            )
+            # Phase 8 requires user input for submission - auto-answer "yes"
+            if phase == 8:
+                result = subprocess.run(
+                    [sys.executable, str(test_file), self.competition_name],
+                    input="yes\n",  # Auto-submit to Kaggle
+                    capture_output=False,
+                    text=True
+                )
+            else:
+                result = subprocess.run(
+                    [sys.executable, str(test_file), self.competition_name],
+                    capture_output=False,
+                    text=True
+                )
             return result.returncode == 0
         except Exception as e:
             print(f"   ❌ Error running phase {phase}: {e}")
