@@ -124,18 +124,17 @@ async def test_phase_8_submission(competition_name: str = "titanic", submit_to_k
                 print(f"   CV Score: {context.get('cv_score'):.4f}")
             print()
 
-            user_answer = input("🤔 Submit to Kaggle leaderboard? (yes/no): ").strip().lower()
-
-            if user_answer == 'yes':
-                print("   ✅ Submitting to Kaggle...")
-                # Don't mock - let it actually ask (user already answered above)
-                context = await asyncio.wait_for(
-                    run_submission(orchestrator, context),
-                    timeout=120
-                )
-            else:
-                print("   ⏭️  Creating submission file only (no upload)")
-                with patch('builtins.input', return_value='no'):
+           # user_answer = input("🤔 Submit to Kaggle leaderboard? (yes/no): ").strip().lower()
+            user_answer = 'yes'
+            with patch('builtins.input', return_value=user_answer):
+                if user_answer == 'yes':
+                    print("   ✅ Submitting to Kaggle...")
+                    context = await asyncio.wait_for(
+                        run_submission(orchestrator, context),
+                        timeout=120
+                    )
+                else:
+                    print("   ⏭️  Creating submission file only (no upload)")
                     context = await asyncio.wait_for(
                         run_submission(orchestrator, context),
                         timeout=120

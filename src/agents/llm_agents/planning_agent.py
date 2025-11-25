@@ -18,6 +18,11 @@ class PlanningAgent(BaseLLMAgent):
 
     This agent combines problem understanding and data analysis to create
     a comprehensive, step-by-step plan that workers can execute.
+
+    Enhanced with tool-based architecture:
+    - Can query previous optimization attempts
+    - Can read optimizer recommendations
+    - Can learn from performance history
     """
 
     def __init__(self):
@@ -30,6 +35,9 @@ class PlanningAgent(BaseLLMAgent):
             temperature=0.3,
             system_prompt=system_prompt
         )
+
+        # Tool support
+        self.tools = None  # Injected by orchestrator
 
     async def create_plan(
         self,
@@ -448,3 +456,248 @@ Create the plan:"""
 🔍 Confidence: {plan.get('confidence', 'unknown').upper()}
 """
         return summary
+
+    # ====================================================================
+    # TOOL-BASED PLANNING METHODS
+    # ====================================================================
+
+    async def create_plan_with_tools(
+        self,
+        problem_understanding: Dict[str, Any],
+        data_analysis: Dict[str, Any],
+        competition_name: str,
+        context: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Create execution plan using tools to query previous attempts and recommendations.
+
+        This is the tool-enabled version that allows the agent to learn from history.
+
+        Args:
+            problem_understanding: Problem understanding
+            data_analysis: Data analysis results
+            competition_name: Competition name
+            context: Additional context (iteration number, etc.)
+
+        Returns:
+            Execution plan informed by tool results
+        """
+        logger.info(f"🧠 Creating plan with tool support for: {competition_name}")
+
+        # If no tools available, fall back to normal planning
+        if not self.tools:
+            logger.warning("No tools available, using standard planning")
+            return await self.create_plan(problem_understanding, data_analysis, None, competition_name)
+
+        # Step 1: Decide which tools to use
+        tool_decision = await self._decide_tools_to_use(context or {})
+        logger.info(f"Agent decided to use {len(tool_decision['tools_to_use'])} tools")
+
+        # Step 2: Execute tools and gather information
+        tool_results = {}
+        for tool_name in tool_decision['tools_to_use']:
+            result = self._execute_tool(tool_name)
+            if result:
+                tool_results[tool_name] = result
+
+        # Step 3: Create plan with tool results included in prompt
+        plan = await self._create_plan_with_tool_context(
+            problem_understanding,
+            data_analysis,
+            competition_name,
+            tool_results,
+            context or {}
+        )
+
+        return plan
+
+    async def _decide_tools_to_use(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Let AI decide which tools are needed for this planning task.
+
+        Args:
+            context: Current context (iteration number, etc.)
+
+        Returns:
+            Dictionary with tools_to_use list and reasoning
+        """
+        iteration = context.get('iteration', 1)
+        available_tools = self.tools.get_available_tools() if self.tools else {}
+
+        prompt = f"""You are a Planning Agent deciding which information to gather before creating an execution plan.
+
+Context:
+- Iteration: {iteration}
+- Available tools: {len(available_tools)}
+
+Available Tools:
+{json.dumps(available_tools, indent=2)}
+
+Question: Which tools should you use to create the best execution plan?
+
+Consider:
+- Is this the first iteration or an optimization loop?
+  * First iteration (iteration=1): No previous attempts, tools may not be helpful
+  * Later iterations (iteration>1): Should check what was tried before
+- Do you need to know what was tried before and failed?
+- Do you need optimizer recommendations?
+- Do you need data insights for feature engineering?
+
+Respond with JSON:
+{{
+  "tools_to_use": ["tool_name1", "tool_name2", ...],
+  "reasoning": "Brief explanation of why these tools are needed"
+}}
+
+If this is iteration 1 and no previous attempts exist, return empty tools_to_use list.
+"""
+
+        try:
+            response = generate_ai_response(self.model, prompt)
+            # Parse response
+            cleaned = response.strip()
+            if cleaned.startswith("```json"):
+                cleaned = cleaned[7:]
+            if cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+
+            decision = json.loads(cleaned)
+            logger.info(f"Tool decision: {decision.get('reasoning', 'No reason provided')}")
+            return decision
+
+        except Exception as e:
+            logger.warning(f"Failed to get tool decision from AI: {e}. Using no tools.")
+            return {"tools_to_use": [], "reasoning": "AI decision failed"}
+
+    def _execute_tool(self, tool_name: str, params: Dict[str, Any] = None):
+        """
+        Execute a tool and return its results.
+
+        Args:
+            tool_name: Name of the tool to execute
+            params: Optional parameters for the tool
+
+        Returns:
+            Tool result dictionary or None if failed
+        """
+        if not self.tools:
+            logger.warning(f"Cannot execute tool '{tool_name}': No toolkit available")
+            return None
+
+        tool_method = getattr(self.tools, tool_name, None)
+        if not tool_method:
+            logger.warning(f"Tool not found: {tool_name}")
+            return None
+
+        try:
+            logger.debug(f"Executing tool: {tool_name}")
+            if params:
+                result = tool_method(**params)
+            else:
+                result = tool_method()
+            logger.debug(f"Tool {tool_name} executed successfully")
+            return result
+        except Exception as e:
+            logger.error(f"Tool execution failed: {tool_name} - {e}")
+            return {"error": str(e)}
+
+    async def _create_plan_with_tool_context(
+        self,
+        problem_understanding: Dict[str, Any],
+        data_analysis: Dict[str, Any],
+        competition_name: str,
+        tool_results: Dict[str, Any],
+        context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Create execution plan using tool results to inform decisions.
+
+        Args:
+            problem_understanding: Problem understanding
+            data_analysis: Data analysis
+            competition_name: Competition name
+            tool_results: Results from executed tools
+            context: Additional context
+
+        Returns:
+            Execution plan informed by tools
+        """
+        # Build enhanced prompt with tool results
+        base_prompt = f"""You are an expert Kaggle competition strategist creating an execution plan.
+
+# Competition Context
+
+**Competition:** {competition_name}
+**Iteration:** {context.get('iteration', 1)}
+
+## Problem Understanding
+{json.dumps(problem_understanding, indent=2)}
+
+## Data Analysis
+{json.dumps(data_analysis, indent=2)}
+"""
+
+        # Add tool results if available
+        if tool_results:
+            base_prompt += f"""
+
+# Information from Tools (IMPORTANT - Use this to inform your plan!)
+
+You gathered the following information by querying tools:
+
+{json.dumps(tool_results, indent=2)}
+
+CRITICAL INSTRUCTIONS:
+- If you see previous attempts that failed, DO NOT repeat the same approach
+- If optimizer recommends a specific action (e.g., switch_model to catboost), IMPLEMENT IT
+- If performance trend is improving, continue current approach with refinements
+- If trend is plateauing, try a different strategy
+- Learn from history - avoid repeating failures!
+"""
+
+        # Add standard planning instructions
+        base_prompt += """
+
+# Your Task
+
+Create a DETAILED, EXECUTABLE plan that:
+1. **Learns from previous attempts** (if any) - Don't repeat failures!
+2. **Implements optimizer recommendations** (if any) - They analyzed what works
+3. **Is specific and actionable** - Workers can follow step-by-step
+4. **Prioritizes what works** - Based on evidence from tool results
+
+[Rest of planning instructions follow the same format as standard planning...]
+
+Respond with ONLY valid JSON in the exact format specified earlier.
+"""
+
+        try:
+            # Get AI response with tool context
+            response_text = generate_ai_response(self.model, base_prompt)
+
+            # Parse response
+            plan = self._parse_ai_response(response_text)
+
+            # Add metadata
+            plan["competition_name"] = competition_name
+            plan["ai_model"] = self.model_name
+            plan["tools_used"] = list(tool_results.keys()) if tool_results else []
+            plan["based_on"] = {
+                "problem_understanding": problem_understanding.get("task_type"),
+                "problem_type": problem_understanding.get("competition_type"),
+                "iteration": context.get("iteration", 1),
+                "learned_from_history": len(tool_results) > 0
+            }
+
+            logger.info(f"✅ Tool-informed plan created!")
+            logger.info(f"   Tools used: {plan['tools_used']}")
+            logger.info(f"   Models planned: {[m['model'] for m in plan['models_to_try'][:3]]}")
+
+            return plan
+
+        except Exception as e:
+            logger.error(f"Failed to create tool-informed plan: {e}")
+            raise

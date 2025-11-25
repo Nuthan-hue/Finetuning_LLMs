@@ -94,6 +94,45 @@ async def test_phase_9_evaluation(competition_name: str = "titanic"):
                 "leaderboard_results": context.get("leaderboard_results")
             }, f, indent=2)
 
+        # Write to agent memory for future iterations to learn from
+        try:
+            from src.agents.memory import AgentMemory
+
+            memory = AgentMemory(competition_name)
+
+            # Load Phase 7 data to get model info
+            phase7_cache = test_cache_dir / "test_phase7_cache.json"
+            model_type = "unknown"
+            cv_score = None
+
+            if phase7_cache.exists():
+                with open(phase7_cache, 'r') as f:
+                    phase7_data = json.load(f)
+                    model_type = phase7_data.get("model_type", "unknown")
+                    cv_score = phase7_data.get("cv_score")
+
+            # Get iteration number (default to 1 if not in context)
+            iteration = context.get("iteration", 1)
+
+            # Record this attempt in memory
+            memory.record_attempt(
+                iteration=iteration,
+                data={
+                    "model": model_type,
+                    "cv_score": cv_score,
+                    "leaderboard_score": context.get("leaderboard_results", {}).get("score"),
+                    "rank": context.get("current_rank"),
+                    "percentile": context.get("current_percentile"),
+                    "meets_target": context.get("meets_target", False)
+                }
+            )
+
+            print(f"   📝 Recorded attempt #{iteration} in agent memory")
+
+        except Exception as e:
+            print(f"   ⚠️  Failed to write to agent memory: {e}")
+            # Don't fail the test if memory write fails
+
         print("\n✅ Phase 9 PASSED")
         print(f"   Current rank: {context.get('current_rank', 'N/A')}")
         print(f"   Current percentile: {context.get('current_percentile', 'N/A')}")
